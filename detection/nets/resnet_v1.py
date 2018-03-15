@@ -1,5 +1,5 @@
 import tensorflow as tf
-import resnet_utils
+from . import resnet_utils
 
 
 slim = tf.contrib.slim
@@ -63,7 +63,7 @@ def resnet_v1(inputs, blocks,
                 return net, end_points
 
 
-resnet_v1.default_image_size = 224
+resnet_v1.default_image_size = [224, 224]
 
 def resnet_v1_50(inputs,
                  num_classes=None,
