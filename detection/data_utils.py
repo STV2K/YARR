@@ -67,7 +67,7 @@ def load_annotation(ano_path):
             for num in datas:
                 nums.append(int(num))
             x1, y1, x2, y2, x3, y3, x4, y4 = nums
-            polys.append(x1, y1, x2, y2, x3, y3, x4, y4)
+            polys.append((x1, y1, x2, y2, x3, y3, x4, y4))
 
             if gt_word != "" and gt_word != "\n" and gt_word != "\r\n":
                 tags.append(True)
@@ -78,7 +78,8 @@ def load_annotation(ano_path):
 
 
 def process_image(filename):
-    image_data = tf.gfile,FastGFile(filename, 'r').read()
+    print(filename)
+    image_data = tf.gfile.FastGFile(filename, 'rb').read()
     im = cv2.imread(filename)
     shape = im.shape
 
@@ -132,7 +133,7 @@ def run(output_dir, shuffling=False, name='STV2K'):
 
     if shuffling:
         random.seed()
-        random.shuffling(filenames)
+        random.shuffle(filenames)
 
     i = 0
     index = 0
@@ -142,7 +143,7 @@ def run(output_dir, shuffling=False, name='STV2K'):
         with tf.python_io.TFRecordWriter(tf_filename) as tfrecord_writer:
             j = 0
             while i < files_len and j < SAMPLE_PER_FILE:
-                sys.stdout.write("\r>> Converting image %d/%d" % (i+1, files_len)
+                sys.stdout.write("\r>> Converting image %d/%d" % (i+1, files_len))
                 sys.stdout.flush()
 
                 filename = filenames[i]
