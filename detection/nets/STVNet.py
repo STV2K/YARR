@@ -1,0 +1,44 @@
+import tensorflow as tf
+import resnet_v1
+import resnet_utils
+
+slim = tf.contrib.slim
+
+
+default_params = STVParams(
+      img_shape=(300, 300),
+      num_classes=21,
+      no_annotation_label=21,
+      feat_layers=['block2', 'block7', 'block8', 'block9', 'block10', 'block11'],
+      feat_shapes=[(38, 38), (19, 19), (10, 10), (5, 5), (3, 3), (1, 1)],
+      anchor_size_bounds=[0.15, 0.90],
+      # anchor_size_bounds=[0.20, 0.90],
+      anchor_sizes=[(21., 45.),
+                    (45., 99.),
+                    (99., 153.),
+                    (153., 207.),
+                    (207., 261.),
+                    (261., 315.)],
+      anchor_ratios=[[2, .5],
+                     [2, .5, 3, 1./3],
+                     [2, .5, 3, 1./3],
+                     [2, .5, 3, 1./3],
+                     [2, .5],
+                     [2, .5]],
+      anchor_steps=[8, 16, 32, 64, 100, 300],
+      anchor_offset=0.5,
+      normalizations=[20, -1, -1, -1, -1, -1],
+      prior_scaling=[0.1, 0.1, 0.2, 0.2]
+      )
+
+def model(images, weight_decay=1e-5, is_training=True):
+  with slim.arg_scope(resnet_utils.resnet_arg_scope(weight_decay=weight_decay)):
+        logits, end_points = resnet_v1.resnet_v1_50(images,
+                              is_training=is_training,
+                              scope='resnet_v1_50')
+        
+        # TODO: add layer
+        # net = end_points['resnet_v1_50/block2']
+        # net = slim.conv2d(net, 512, [3, 3], padding=1)
+
+        return logits, end_points
