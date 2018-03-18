@@ -108,7 +108,7 @@ def convert_to_example(image_data, shape, bboxes, difficults):
               'image/height': int64_feature(shape[0]),
               'image/width': int64_feature(shape[1]),
               'image/channels': int64_feature(shape[2]),
-              'image/shape': int64_feature(shape),
+              # 'image/shape': int64_feature(shape),
               'image/object/bbox/x1': float_feature(x1),
               'image/object/bbox/y1': float_feature(y1),
               'image/object/bbox/x2': float_feature(x2),
@@ -201,6 +201,8 @@ def get_tf_data(dataset_dir, file_pattern, reader=None):
     items_to_handlers = {
                         'image': slim.tfexample_decoder.Image('image/encoded', 'image/format'),
                         # 'shape': slim.tfexample_decoder.Tensor('image/shape'),
+                        'height': slim.tfexample_decoder.Tensor('image/height'),
+                        'width': slim.tfexample_decoder.Tensor('image/width'),
                         'object/x1': slim.tfexample_decoder.Tensor('image/object/bbox/x1'),
                         'object/y1': slim.tfexample_decoder.Tensor('image/object/bbox/y1'),
                         'object/x2': slim.tfexample_decoder.Tensor('image/object/bbox/x2'),
@@ -228,15 +230,15 @@ if __name__ == '__main__':
     # print(polys)
     # data_generator = get_batch(4, 32, 8)
     # data = next(data_generator)
-    # run("/media/data2/hcx_data/STV2KTF", shuffling=True)
+    run("/media/data2/hcx_data/STV2KTF/", shuffling=True)
 
-    data = get_tf_data(config.FLAGS.training_data_path, '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord')
-    provider = slim.dataset_data_provider.DatasetDataProvider(
-                    data,
-                    num_readers=4,
-                    common_queue_capacity=20 * 32,
-                    common_queue_min=10 * 32,
-                    shuffle=True)
-    [image, x1, y1] = provider.get(['image', 'object/x1', 'object/y1']) # , x2, y2, x3, y3, x4, y4
-    print(x1)
+    # data = get_tf_data(config.FLAGS.training_data_path, '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord')
+    # provider = slim.dataset_data_provider.DatasetDataProvider(
+    #                 data,
+    #                 num_readers=4,
+    #                 common_queue_capacity=20 * 32,
+    #                 common_queue_min=10 * 32,
+    #                 shuffle=True)
+    # [image, x1, y1] = provider.get(['image', 'object/x1', 'object/y1']) # , x2, y2, x3, y3, x4, y4
+    # print(x1)
 

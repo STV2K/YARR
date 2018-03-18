@@ -1,9 +1,23 @@
 import tensorflow as tf
-import resnet_v1
-import resnet_utils
+from collections import namedtuple
+from . import resnet_v1
+from . import resnet_utils
 
 slim = tf.contrib.slim
 
+STVParams = namedtuple('STVParameters', ['img_shape',
+                                         'num_classes',
+                                         'no_annotation_label',
+                                         'feat_layers',
+                                         'feat_shapes',
+                                         'anchor_size_bounds',
+                                         'anchor_sizes',
+                                         'anchor_ratios',
+                                         'anchor_steps',
+                                         'anchor_offset',
+                                         'normalizations',
+                                         'prior_scaling'
+                                         ])
 
 default_params = STVParams(
       img_shape=(300, 300),
