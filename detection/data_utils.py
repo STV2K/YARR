@@ -8,6 +8,8 @@ import tensorflow as tf
 import config_utils as config
 
 
+slim = tf.contrib.slim
+
 def int64_feature(value):
     """Wrapper for inserting int64 features into Example proto.
     """
@@ -157,6 +159,21 @@ def run(output_dir, shuffling=False, name='STV2K'):
     print('\nFinish converting datasets')
 
 
+ITEMS_TO_DESCRIPTIONS = {
+    'image': 'A color image of varying height and width.',
+    # 'shape': 'Shape of the image',
+    'object/x1': 'A list of bounding boxes, one per each object.',
+    'object/y1': 'A list of bounding boxes, one per each object.',
+    'object/x2': 'A list of bounding boxes, one per each object.',
+    'object/y2': 'A list of bounding boxes, one per each object.',
+    'object/x3': 'A list of bounding boxes, one per each object.',
+    'object/y3': 'A list of bounding boxes, one per each object.',
+    'object/x4': 'A list of bounding boxes, one per each object.',
+    'object/y4': 'A list of bounding boxes, one per each object.',
+
+    # 'object/label': 'A list of labels, one per each object.',
+}
+
 def get_tf_data(dataset_dir, file_pattern, reader=None):
 
 
@@ -182,7 +199,7 @@ def get_tf_data(dataset_dir, file_pattern, reader=None):
     }
 
     items_to_handlers = {
-                        'image': slim.tfexample_decoder.Image('image/encoded', 'image/format')
+                        'image': slim.tfexample_decoder.Image('image/encoded', 'image/format'),
                         # 'shape': slim.tfexample_decoder.Tensor('image/shape'),
                         'object/x1': slim.tfexample_decoder.Tensor('image/object/bbox/x1'),
                         'object/y1': slim.tfexample_decoder.Tensor('image/object/bbox/y1'),
@@ -191,16 +208,17 @@ def get_tf_data(dataset_dir, file_pattern, reader=None):
                         'object/x3': slim.tfexample_decoder.Tensor('image/object/bbox/x3'),
                         'object/y3': slim.tfexample_decoder.Tensor('image/object/bbox/y3'),
                         'object/x4': slim.tfexample_decoder.Tensor('image/object/bbox/x4'),
-                        'object/y4': slim.tfexample_decoder.Tensor('image/object/bbox/y4'),
+                        'object/y4': slim.tfexample_decoder.Tensor('image/object/bbox/y4')
     }
 
     decoder = slim.tfexample_decoder.TFExampleDecoder(keys_to_features, items_to_handlers)
 
-    return slim.dataset.Dateset(
-                                data_source=file_pattern,
+    return slim.dataset.Dataset(
+                                data_sources=file_pattern,
                                 reader=reader,
                                 decoder=decoder,
-                                num_samples=1215,
+                                items_to_descriptions=ITEMS_TO_DESCRIPTIONS,
+                                num_samples=200,
                                 )
 
 
@@ -219,6 +237,6 @@ if __name__ == '__main__':
                     common_queue_capacity=20 * 32,
                     common_queue_min=10 * 32,
                     shuffle=True)
-    [image, x1, y1] = procider.get(['image', 'object/x1', 'object/y1']) # , x2, y2, x3, y3, x4, y4
-
+    [image, x1, y1] = provider.get(['image', 'object/x1', 'object/y1']) # , x2, y2, x3, y3, x4, y4
+    print(x1)
 
