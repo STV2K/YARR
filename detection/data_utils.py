@@ -106,6 +106,7 @@ def convert_to_example(image_data, shape, bboxes, difficults):
               'image/height': int64_feature(shape[0]),
               'image/width': int64_feature(shape[1]),
               'image/channels': int64_feature(shape[2]),
+              'image/shape': int64_feature(shape),
               'image/object/bbox/x1': float_feature(x1),
               'image/object/bbox/y1': float_feature(y1),
               'image/object/bbox/x2': float_feature(x2),
@@ -115,7 +116,8 @@ def convert_to_example(image_data, shape, bboxes, difficults):
               'image/object/bbox/x4': float_feature(x4),
               'image/object/bbox/y4': float_feature(y4),
               # 'image/object/difficult': 
-              'image/encoded': bytes_feature(image_data)
+              'image/encoded': bytes_feature(image_data),
+              'image/format': bytes_feature(b'jpg')
               }))
     return example
 
@@ -155,10 +157,68 @@ def run(output_dir, shuffling=False, name='STV2K'):
     print('\nFinish converting datasets')
 
 
+def get_tf_data(dataset_dir, file_pattern, reader=None):
+
+
+    if reader is None:
+        reader = tf.TFRecordReader
+
+    keys_to_features = {
+                        'image/height': tf.FixedLenFeature([1], tf.int64),
+                        'image/width': tf.FixedLenFeature([1], tf.int64),
+                        'image/channels': tf.FixedLenFeature([1], tf.int64),
+                        # 'image/shape': tf.FixedLenFeature([3], tf.int64),
+                        'image/object/bbox/x1': tf.VarLenFeature(dtype=tf.float32),
+                        'image/object/bbox/y1': tf.VarLenFeature(dtype=tf.float32),
+                        'image/object/bbox/x2': tf.VarLenFeature(dtype=tf.float32),
+                        'image/object/bbox/y2': tf.VarLenFeature(dtype=tf.float32),
+                        'image/object/bbox/x3': tf.VarLenFeature(dtype=tf.float32),
+                        'image/object/bbox/y3': tf.VarLenFeature(dtype=tf.float32),
+                        'image/object/bbox/x4': tf.VarLenFeature(dtype=tf.float32),
+                        'image/object/bbox/y4': tf.VarLenFeature(dtype=tf.float32),
+                        # 'image/object/difficult': 
+                        'image/encoded': tf.FixedLenFeature((), tf.string, default_value=''),
+                        'image/format': tf.FixedLenFeature((), tf.string, default_value='jpg')
+    }
+
+    items_to_handlers = {
+                        'image': slim.tfexample_decoder.Image('image/encoded', 'image/format')
+                        # 'shape': slim.tfexample_decoder.Tensor('image/shape'),
+                        'object/x1': slim.tfexample_decoder.Tensor('image/object/bbox/x1'),
+                        'object/y1': slim.tfexample_decoder.Tensor('image/object/bbox/y1'),
+                        'object/x2': slim.tfexample_decoder.Tensor('image/object/bbox/x2'),
+                        'object/y2': slim.tfexample_decoder.Tensor('image/object/bbox/y2'),
+                        'object/x3': slim.tfexample_decoder.Tensor('image/object/bbox/x3'),
+                        'object/y3': slim.tfexample_decoder.Tensor('image/object/bbox/y3'),
+                        'object/x4': slim.tfexample_decoder.Tensor('image/object/bbox/x4'),
+                        'object/y4': slim.tfexample_decoder.Tensor('image/object/bbox/y4'),
+    }
+
+    decoder = slim.tfexample_decoder.TFExampleDecoder(keys_to_features, items_to_handlers)
+
+    return slim.dataset.Dateset(
+                                data_source=file_pattern,
+                                reader=reader,
+                                decoder=decoder,
+                                num_samples=1215,
+                                )
+
+
 if __name__ == '__main__':
     # get_images()
     # polys = load_annotation('/home/hcxiao/Datasets/STV2k/stv2k_train/STV2K_tr_0001.txt')
     # print(polys)
     # data_generator = get_batch(4, 32, 8)
     # data = next(data_generator)
-    run("/media/data2/hcx_data/STV2KTF", shuffling=True)
+    # run("/media/data2/hcx_data/STV2KTF", shuffling=True)
+
+    data = get_tf_data(config.FLAGS.training_data_path, '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord')
+    provider = slim.dataset_data_provider.DatasetDataProvider(
+                    data,
+                    num_readers=4,
+                    common_queue_capacity=20 * 32,
+                    common_queue_min=10 * 32,
+                    shuffle=True)
+    [image, x1, y1] = procider.get(['image', 'object/x1', 'object/y1']) # , x2, y2, x3, y3, x4, y4
+
+
