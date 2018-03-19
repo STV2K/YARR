@@ -33,11 +33,40 @@ def main():
     with tf.Session() as sess:
         sess.run(init)
         print(image)
-        im = tf.reshape(image, [3264, 2448, 3]) 
-        inputimg = sess.run(im)
-        # height = sess.run(height)
-        print('height')
-        # f_score, f_geo = sess.run([logits, end_points], feed_dict={inputs: inputimg})
+        # im = tf.reshape(image, [3264, 2448, 3]) 
+        # inputimg = sess.run(im)
+        r = tf.train.batch(reshape_list([image]), batch_size=4, num_threads=4, capacity=20)
+        b_image = reshape_list(r, [3264, 2448, 3])
+        print(b_image)
+        f_score, f_geo = sess.run([logits, end_points], feed_dict={inputs: b_image})
+
+def reshape_list(l, shape=None):
+    """Reshape list of (list): 1D to 2D or the other way around.
+
+    Args:
+      l: List or List of list.
+      shape: 1D or 2D shape.
+    Return
+      Reshaped list.
+    """
+    r = []
+    if shape is None:
+        # Flatten everything.
+        for a in l:
+            if isinstance(a, (list, tuple)):
+                r = r + list(a)
+            else:
+                r.append(a)
+    else:
+        # Reshape to list of list.
+        i = 0
+        for s in shape:
+            if s == 1:
+                r.append(l[i])
+            else:
+                r.append(l[i:i+s])
+            i += s
+    return r
 
 if __name__ == '__main__':
     main()
