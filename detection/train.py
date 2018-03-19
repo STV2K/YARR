@@ -25,7 +25,11 @@ def main():
                                                             'object/x3', 'object/y3',
                                                             'object/x4', 'object/y4'])
 
-
+    # im = tf.reshape(image, [3264, 2448, 3]) 
+    print(height)
+    image.set_shape([height, width, 3]) 
+    b_image = tf.train.shuffle_batch([image], batch_size=4, capacity=20, min_after_dequeue=10)
+    
     inputs = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='inputs')
     logits, end_points = STVNet.model(inputs)
 
@@ -33,11 +37,12 @@ def main():
     with tf.Session() as sess:
         sess.run(init)
         print(image)
-        # im = tf.reshape(image, [3264, 2448, 3]) 
+        threads = tf.train.start_queue_runners(sess=sess)
         # inputimg = sess.run(im)
-        r = tf.train.batch(reshape_list([image]), batch_size=4, num_threads=4, capacity=20)
-        b_image = reshape_list(r, [3264, 2448, 3])
+        # r = tf.train.batch(reshape_list([image]), batch_size=4, num_threads=4, capacity=20)
+        # b_image = reshape_list(r, [3264, 2448, 3])
         print(b_image)
+        b_image = sess.run(b_image)
         f_score, f_geo = sess.run([logits, end_points], feed_dict={inputs: b_image})
 
 def reshape_list(l, shape=None):
