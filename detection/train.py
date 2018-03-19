@@ -11,7 +11,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "2" # config.FLAGS.gpu_list
 
 
 def main():
-    data = data_utils.get_tf_data(config.FLAGS.training_data_path, '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord')
+    data = data_utils.get_tf_data(config.FLAGS.training_data_path, '/media/data2/hcx_data/STV2KTF/STV2K_0006.tfrecord')
     provider = slim.dataset_data_provider.DatasetDataProvider(
                     data,
                     num_readers=4,
@@ -32,11 +32,12 @@ def main():
     init = tf.global_variables_initializer()
     with tf.Session() as sess:
         sess.run(init)
-        print(image[0])
-        im = tf.reshape(image[0], [3264, 2448, 3]) 
+        print(image)
+        im = tf.reshape(image, [3264, 2448, 3]) 
         inputimg = sess.run(im)
-        print('reshape over!')
-        f_score, f_geo = sess.run([logits, end_points], feed_dict={inputs: inputimg})
+        # height = sess.run(height)
+        print('height')
+        # f_score, f_geo = sess.run([logits, end_points], feed_dict={inputs: inputimg})
 
 if __name__ == '__main__':
     main()
