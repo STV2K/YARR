@@ -223,6 +223,44 @@ def get_tf_data(dataset_dir, file_pattern, reader=None):
                                 num_samples=200,
                                 )
 
+def read_and_decode(filename_queue):
+    reader = tf.TFRecordReader()
+    _, serialized_example = reader.read(filename_queue)
+
+    features = tf.parse_single_example(
+        'image/height': tf.FixedLenFeature([1], tf.int64),
+        'image/width': tf.FixedLenFeature([1], tf.int64),
+        'image/channels': tf.FixedLenFeature([1], tf.int64),
+        # 'image/shape': tf.FixedLenFeature([3], tf.int64),
+        'image/object/bbox/x1': tf.VarLenFeature(dtype=tf.float32),
+        'image/object/bbox/y1': tf.VarLenFeature(dtype=tf.float32),
+        'image/object/bbox/x2': tf.VarLenFeature(dtype=tf.float32),
+        'image/object/bbox/y2': tf.VarLenFeature(dtype=tf.float32),
+        'image/object/bbox/x3': tf.VarLenFeature(dtype=tf.float32),
+        'image/object/bbox/y3': tf.VarLenFeature(dtype=tf.float32),
+        'image/object/bbox/x4': tf.VarLenFeature(dtype=tf.float32),
+        'image/object/bbox/y4': tf.VarLenFeature(dtype=tf.float32),
+        # 'image/object/difficult': 
+        'image/encoded': tf.FixedLenFeature((), tf.string, default_value=''),
+        'image/format': tf.FixedLenFeature((), tf.string, default_value='jpg'))
+
+    image = tf.decode_raw(features['image/encoded'], tf.uint8)
+    height = tf.cast(features['image/height'], tf.int32)
+    width = tf.cast(features['image/width'], tf.int32)
+
+    image_shape = tf.pack([height, width, 3])
+    image = tf.reshape(image, image_shape)
+    image_size_const = tf.constant((IMAGE_HEIGHT, IMAGE_WIDTH, 3), dtype=tf.int32)
+    resize_image = tf.image.resize_image_with_crop_or_pad(image=image,
+                                                          target_height=IMAGE_HEIGHT,
+                                                          target_width=IMAGE_WIDTH)
+
+    images = tf.train.shuffle_batch([resize_image],
+                                    batch_size=2,
+                                    capacity=30,
+                                    num_threads=2,
+                                    min_after_dequeue=10)
+    return images
 
 if __name__ == '__main__':
     # get_images()
@@ -230,7 +268,7 @@ if __name__ == '__main__':
     # print(polys)
     # data_generator = get_batch(4, 32, 8)
     # data = next(data_generator)
-    run("/media/data2/hcx_data/STV2KTF/", shuffling=True)
+    # run("/media/data2/hcx_data/STV2KTF/", shuffling=True)
 
     # data = get_tf_data(config.FLAGS.training_data_path, '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord')
     # provider = slim.dataset_data_provider.DatasetDataProvider(
@@ -241,4 +279,17 @@ if __name__ == '__main__':
     #                 shuffle=True)
     # [image, x1, y1] = provider.get(['image', 'object/x1', 'object/y1']) # , x2, y2, x3, y3, x4, y4
     # print(x1)
+
+    filename_queue = tf.train.string_input_producer(['/media/data2/hcx_data/STV2KTF/STV2K_0006.tfrecord'],
+                                                    num_epochs=10)
+    image = read_and_decode(filename_queue)
+
+    init = tf.global_variables_initializer()
+    with tf.Session() as sess:
+        sess.run(init)
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(coord=coord)
+
+        img = sess.run(image)
+        print(img[0, :, :, :].shape)
 
