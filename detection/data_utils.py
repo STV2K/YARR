@@ -161,70 +161,6 @@ def run(output_dir, shuffling=False, name='STV2K'):
     print('\nFinish converting datasets')
 
 
-ITEMS_TO_DESCRIPTIONS = {
-    'image': 'A color image of varying height and width.',
-    # 'shape': 'Shape of the image',
-    'object/x1': 'A list of bounding boxes, one per each object.',
-    'object/y1': 'A list of bounding boxes, one per each object.',
-    'object/x2': 'A list of bounding boxes, one per each object.',
-    'object/y2': 'A list of bounding boxes, one per each object.',
-    'object/x3': 'A list of bounding boxes, one per each object.',
-    'object/y3': 'A list of bounding boxes, one per each object.',
-    'object/x4': 'A list of bounding boxes, one per each object.',
-    'object/y4': 'A list of bounding boxes, one per each object.',
-
-    # 'object/label': 'A list of labels, one per each object.',
-}
-
-def get_tf_data(dataset_dir, file_pattern, reader=None):
-
-
-    if reader is None:
-        reader = tf.TFRecordReader
-
-    keys_to_features = {
-                        'image/height': tf.FixedLenFeature([1], tf.int64),
-                        'image/width': tf.FixedLenFeature([1], tf.int64),
-                        'image/channels': tf.FixedLenFeature([1], tf.int64),
-                        # 'image/shape': tf.FixedLenFeature([3], tf.int64),
-                        'image/object/bbox/x1': tf.VarLenFeature(dtype=tf.float32),
-                        'image/object/bbox/y1': tf.VarLenFeature(dtype=tf.float32),
-                        'image/object/bbox/x2': tf.VarLenFeature(dtype=tf.float32),
-                        'image/object/bbox/y2': tf.VarLenFeature(dtype=tf.float32),
-                        'image/object/bbox/x3': tf.VarLenFeature(dtype=tf.float32),
-                        'image/object/bbox/y3': tf.VarLenFeature(dtype=tf.float32),
-                        'image/object/bbox/x4': tf.VarLenFeature(dtype=tf.float32),
-                        'image/object/bbox/y4': tf.VarLenFeature(dtype=tf.float32),
-                        # 'image/object/difficult': 
-                        'image/encoded': tf.FixedLenFeature((), tf.string, default_value=''),
-                        'image/format': tf.FixedLenFeature((), tf.string, default_value='jpg')
-    }
-
-    items_to_handlers = {
-                        'image': slim.tfexample_decoder.Image('image/encoded', 'image/format'),
-                        # 'shape': slim.tfexample_decoder.Tensor('image/shape'),
-                        'height': slim.tfexample_decoder.Tensor('image/height'),
-                        'width': slim.tfexample_decoder.Tensor('image/width'),
-                        'object/x1': slim.tfexample_decoder.Tensor('image/object/bbox/x1'),
-                        'object/y1': slim.tfexample_decoder.Tensor('image/object/bbox/y1'),
-                        'object/x2': slim.tfexample_decoder.Tensor('image/object/bbox/x2'),
-                        'object/y2': slim.tfexample_decoder.Tensor('image/object/bbox/y2'),
-                        'object/x3': slim.tfexample_decoder.Tensor('image/object/bbox/x3'),
-                        'object/y3': slim.tfexample_decoder.Tensor('image/object/bbox/y3'),
-                        'object/x4': slim.tfexample_decoder.Tensor('image/object/bbox/x4'),
-                        'object/y4': slim.tfexample_decoder.Tensor('image/object/bbox/y4')
-    }
-
-    decoder = slim.tfexample_decoder.TFExampleDecoder(keys_to_features, items_to_handlers)
-
-    return slim.dataset.Dataset(
-                                data_sources=file_pattern,
-                                reader=reader,
-                                decoder=decoder,
-                                items_to_descriptions=ITEMS_TO_DESCRIPTIONS,
-                                num_samples=200,
-                                )
-
 IMAGE_HEIGHT = 2000
 IMAGE_WIDTH = 2000
 
@@ -260,14 +196,15 @@ def read_and_decode(filenames):
     image = tf.decode_raw(features['image/encoded'], tf.uint8)
     height = tf.cast(features['image/height'], tf.int32)
     width = tf.cast(features['image/width'], tf.int32)
+    x1 = tf.sparse_tensor_to_dense(features['image/object/x1'])
 
-    print(height[0])
     image_shape = tf.stack([height[0], width[0], 3])
     image = tf.reshape(image, image_shape)
     image_size_const = tf.constant((IMAGE_HEIGHT, IMAGE_WIDTH, 3), dtype=tf.int32)
-    resize_image = tf.image.resize_image_with_crop_or_pad(image=image,
-                                                          target_height=IMAGE_HEIGHT,
-                                                          target_width=IMAGE_WIDTH)
+    # resize_image = tf.image.resize_image_with_crop_or_pad(image=image,
+    #                                                       target_height=IMAGE_HEIGHT,
+    #                                                       target_width=IMAGE_WIDTH)
+    resize_image = tf.image.resize_images(image, new_height=IMAGE_HEIGHT, new_width=IMAGE_WIDTH)
 
     # image.set_shape([height[0], width[0], 3])
     images = tf.train.shuffle_batch([resize_image],
@@ -284,16 +221,6 @@ if __name__ == '__main__':
     # data_generator = get_batch(4, 32, 8)
     # data = next(data_generator)
     # run("/media/data2/hcx_data/STV2KTF/", shuffling=True)
-
-    # data = get_tf_data(config.FLAGS.training_data_path, '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord')
-    # provider = slim.dataset_data_provider.DatasetDataProvider(
-    #                 data,
-    #                 num_readers=4,
-    #                 common_queue_capacity=20 * 32,
-    #                 common_queue_min=10 * 32,
-    #                 shuffle=True)
-    # [image, x1, y1] = provider.get(['image', 'object/x1', 'object/y1']) # , x2, y2, x3, y3, x4, y4
-    # print(x1)
 
     image = read_and_decode(filenames)
 
