@@ -9,6 +9,7 @@ import config_utils as config
 
 
 slim = tf.contrib.slim
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 def int64_feature(value):
     """Wrapper for inserting int64 features into Example proto.
@@ -223,11 +224,22 @@ def get_tf_data(dataset_dir, file_pattern, reader=None):
                                 num_samples=200,
                                 )
 
-def read_and_decode(filename_queue):
+IMAGE_HEIGHT = 384
+IMAGE_WIDTH = 384
+
+filenames = '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord'
+
+def read_and_decode(filenames):
+    filename_queue = tf.train.string_input_producer(['/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord',
+                                                    '/media/data2/hcx_data/STV2KTF/STV2K_0001.tfrecord'],
+                                                    num_epochs=1)
+
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
 
     features = tf.parse_single_example(
+        serialized_example,
+        features={
         'image/height': tf.FixedLenFeature([1], tf.int64),
         'image/width': tf.FixedLenFeature([1], tf.int64),
         'image/channels': tf.FixedLenFeature([1], tf.int64),
@@ -242,25 +254,27 @@ def read_and_decode(filename_queue):
         'image/object/bbox/y4': tf.VarLenFeature(dtype=tf.float32),
         # 'image/object/difficult': 
         'image/encoded': tf.FixedLenFeature((), tf.string, default_value=''),
-        'image/format': tf.FixedLenFeature((), tf.string, default_value='jpg'))
+        'image/format': tf.FixedLenFeature((), tf.string, default_value='jpg')})
 
     image = tf.decode_raw(features['image/encoded'], tf.uint8)
     height = tf.cast(features['image/height'], tf.int32)
     width = tf.cast(features['image/width'], tf.int32)
 
-    image_shape = tf.pack([height, width, 3])
-    image = tf.reshape(image, image_shape)
-    image_size_const = tf.constant((IMAGE_HEIGHT, IMAGE_WIDTH, 3), dtype=tf.int32)
-    resize_image = tf.image.resize_image_with_crop_or_pad(image=image,
-                                                          target_height=IMAGE_HEIGHT,
-                                                          target_width=IMAGE_WIDTH)
+    print(height[0])
+    image_shape = tf.stack([height[0], width[0], 3])
+    # image = tf.reshape(image, image_shape)
+    # image_size_const = tf.constant((IMAGE_HEIGHT, IMAGE_WIDTH, 3), dtype=tf.int32)
+    # resize_image = tf.image.resize_image_with_crop_or_pad(image=image,
+    #                                                       target_height=IMAGE_HEIGHT,
+    #                                                       target_width=IMAGE_WIDTH)
 
-    images = tf.train.shuffle_batch([resize_image],
-                                    batch_size=2,
-                                    capacity=30,
-                                    num_threads=2,
-                                    min_after_dequeue=10)
-    return images
+    # image.set_shape([height[0], width[0], 3])
+    # images = tf.train.shuffle_batch([resize_image],
+    #                                 batch_size=2,
+    #                                 capacity=30,
+    #                                 num_threads=2,
+    #                                 min_after_dequeue=10)
+    return height[0], width[0]
 
 if __name__ == '__main__':
     # get_images()
@@ -280,16 +294,25 @@ if __name__ == '__main__':
     # [image, x1, y1] = provider.get(['image', 'object/x1', 'object/y1']) # , x2, y2, x3, y3, x4, y4
     # print(x1)
 
-    filename_queue = tf.train.string_input_producer(['/media/data2/hcx_data/STV2KTF/STV2K_0006.tfrecord'],
-                                                    num_epochs=10)
-    image = read_and_decode(filename_queue)
+    # image = read_and_decode(filenames)
+    height, width = read_and_decode(filenames)
 
-    init = tf.global_variables_initializer()
+    init = tf.group(tf.global_variables_initializer(),
+                    tf.local_variables_initializer())
+
     with tf.Session() as sess:
-        sess.run(init)
+        # sess.run(init)
+        sess.run(tf.global_variables_initializer())
+        sess.run(tf.local_variables_initializer())
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(coord=coord)
 
-        img = sess.run(image)
-        print(img[0, :, :, :].shape)
+        # img = sess.run(image)
+        # print(img[0, :, :, :].shape)
+        h, w = sess.run([height, width])
+        print(h, w)
+
+        coord.request_stop()
+        coord.join(threads)
+
 
