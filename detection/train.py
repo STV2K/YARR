@@ -24,9 +24,9 @@ def main():
         threads = tf.train.start_queue_runners(coord=coord)
 
         b_image, b_x1, b_bbox_num = sess.run([image, x1, bbox_num])
-        f_score, f_geo = sess.run([logits, end_points], feed_dict={inputs: b_image[0]})
+        f_score, f_geo = sess.run([logits, end_points], feed_dict={inputs: [b_image[0]]})
 
-        print(f_geo)
+        print(f_score.shape, b_bbox_num[0])
 
         coord.request_stop()
         coord.join(threads)

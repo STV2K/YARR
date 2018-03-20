@@ -227,7 +227,7 @@ def read_and_decode():
                                     dynamic_pad=True)
     return images, x1s, bbox_nums
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
     # get_images()
     # polys = load_annotation('/home/hcxiao/Datasets/STV2k/stv2k_train/STV2K_tr_0001.txt')
     # print(polys)
