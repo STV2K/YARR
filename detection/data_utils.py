@@ -110,6 +110,7 @@ def convert_to_example(image_data, shape, bboxes, difficults):
               'image/height': int64_feature(shape[0]),
               'image/width': int64_feature(shape[1]),
               'image/channels': int64_feature(shape[2]),
+              'image/object/bbox/num': int64_feature(len(x1)),
               # 'image/shape': int64_feature(shape),
               'image/object/bbox/x1': float_feature(x1),
               'image/object/bbox/y1': float_feature(y1),
@@ -161,15 +162,20 @@ def run(output_dir, shuffling=False, name='STV2K'):
     print('\nFinish converting datasets')
 
 
-IMAGE_HEIGHT = 2000
-IMAGE_WIDTH = 2000
+IMAGE_HEIGHT = 300
+IMAGE_WIDTH = 300
 
 filenames = '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord'
 
 def read_and_decode(filenames):
     filename_queue = tf.train.string_input_producer(['/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord',
-                                                    '/media/data2/hcx_data/STV2KTF/STV2K_0001.tfrecord'],
-                                                    num_epochs=1)
+                                                     '/media/data2/hcx_data/STV2KTF/STV2K_0001.tfrecord',
+                                                     '/media/data2/hcx_data/STV2KTF/STV2K_0002.tfrecord',
+                                                     '/media/data2/hcx_data/STV2KTF/STV2K_0003.tfrecord',
+                                                     '/media/data2/hcx_data/STV2KTF/STV2K_0004.tfrecord',
+                                                     '/media/data2/hcx_data/STV2KTF/STV2K_0005.tfrecord',
+                                                     '/media/data2/hcx_data/STV2KTF/STV2K_0006.tfrecord'],
+                                                    num_epochs=10)
 
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
@@ -180,6 +186,7 @@ def read_and_decode(filenames):
         'image/height': tf.FixedLenFeature([1], tf.int64),
         'image/width': tf.FixedLenFeature([1], tf.int64),
         'image/channels': tf.FixedLenFeature([1], tf.int64),
+        'image/object/bbox/num': tf.FixedLenFeature([1], tf.int64),
         # 'image/shape': tf.FixedLenFeature([3], tf.int64),
         'image/object/bbox/x1': tf.VarLenFeature(dtype=tf.float32),
         'image/object/bbox/y1': tf.VarLenFeature(dtype=tf.float32),
@@ -196,7 +203,12 @@ def read_and_decode(filenames):
     image = tf.decode_raw(features['image/encoded'], tf.uint8)
     height = tf.cast(features['image/height'], tf.int32)
     width = tf.cast(features['image/width'], tf.int32)
-    x1 = tf.sparse_tensor_to_dense(features['image/object/x1'])
+
+    bbox_num = tf.cast(features['image/object/bbox/num'], tf.int32)
+    x1 = tf.sparse_tensor_to_dense(features['image/object/bbox/x1'])
+    print(x1, bbox_num)
+    bbox_shape = tf.stack([bbox_num[0]])
+    x1 = tf.reshape(x1, bbox_shape)
 
     image_shape = tf.stack([height[0], width[0], 3])
     image = tf.reshape(image, image_shape)
@@ -204,15 +216,16 @@ def read_and_decode(filenames):
     # resize_image = tf.image.resize_image_with_crop_or_pad(image=image,
     #                                                       target_height=IMAGE_HEIGHT,
     #                                                       target_width=IMAGE_WIDTH)
-    resize_image = tf.image.resize_images(image, new_height=IMAGE_HEIGHT, new_width=IMAGE_WIDTH)
+    resize_image = tf.image.resize_images(image, size=[IMAGE_HEIGHT, IMAGE_WIDTH])
 
     # image.set_shape([height[0], width[0], 3])
-    images = tf.train.shuffle_batch([resize_image],
-                                    batch_size=2,
+    images, x1s, bbox_nums = tf.train.batch([resize_image, x1, bbox_num],
+                                    batch_size=10,
                                     capacity=30,
                                     num_threads=2,
-                                    min_after_dequeue=10)
-    return images
+                                    # min_after_dequeue=10,
+                                    dynamic_pad=True)
+    return images, x1s, bbox_nums
 
 if __name__ == '__main__':
     # get_images()
@@ -222,7 +235,7 @@ if __name__ == '__main__':
     # data = next(data_generator)
     # run("/media/data2/hcx_data/STV2KTF/", shuffling=True)
 
-    image = read_and_decode(filenames)
+    image, x1, bbox_num = read_and_decode(filenames)
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
@@ -230,11 +243,17 @@ if __name__ == '__main__':
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(coord=coord)
 
-        img = sess.run(image)
-        print(img[0, :, :, :].shape)
-        for i in range(2):
-          im = Image.fromarray(img[i])
-          im.save('out%d.jpg' % i)
+        i = 0
+        while i < 1215:
+            img, x1s, bbox_nums = sess.run([image, x1, bbox_num])
+            for j in range(10):
+                # im = Image.fromarray(np.uint8(img[i]))
+                # im.save('out%d.jpg' % i)
+                # print(img[j, :, :, :].shape)
+                # print(x1s[j])
+                # print(bbox_nums[j])
+                i += 1
+                print(i, bbox_nums[j])
 
         coord.request_stop()
         coord.join(threads)
