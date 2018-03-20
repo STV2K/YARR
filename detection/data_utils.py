@@ -167,7 +167,7 @@ IMAGE_WIDTH = 300
 
 filenames = '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord'
 
-def read_and_decode(filenames):
+def read_and_decode():
     filename_queue = tf.train.string_input_producer(['/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord',
                                                      '/media/data2/hcx_data/STV2KTF/STV2K_0001.tfrecord',
                                                      '/media/data2/hcx_data/STV2KTF/STV2K_0002.tfrecord',
@@ -235,7 +235,9 @@ if __name__ == '__main__':
     # data = next(data_generator)
     # run("/media/data2/hcx_data/STV2KTF/", shuffling=True)
 
-    image, x1, bbox_num = read_and_decode(filenames)
+
+def test_read():
+    image, x1, bbox_num = read_and_decode()
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
