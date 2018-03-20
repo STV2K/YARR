@@ -1,5 +1,5 @@
 import os
-import PIL
+from PIL import Image
 import sys
 import cv2
 import random
@@ -81,8 +81,9 @@ def load_annotation(ano_path):
 
 
 def process_image(filename):
-    print(filename)
-    image_data = tf.gfile.FastGFile(filename, 'rb').read()
+    # image_data = tf.gfile.FastGFile(filename, 'rb').read()
+    img = np.array(Image.open(filename))
+    image_data = img.tostring()
     im = cv2.imread(filename)
     shape = im.shape
 
@@ -262,19 +263,19 @@ def read_and_decode(filenames):
 
     print(height[0])
     image_shape = tf.stack([height[0], width[0], 3])
-    # image = tf.reshape(image, image_shape)
-    # image_size_const = tf.constant((IMAGE_HEIGHT, IMAGE_WIDTH, 3), dtype=tf.int32)
-    # resize_image = tf.image.resize_image_with_crop_or_pad(image=image,
-    #                                                       target_height=IMAGE_HEIGHT,
-    #                                                       target_width=IMAGE_WIDTH)
+    image = tf.reshape(image, image_shape)
+    image_size_const = tf.constant((IMAGE_HEIGHT, IMAGE_WIDTH, 3), dtype=tf.int32)
+    resize_image = tf.image.resize_image_with_crop_or_pad(image=image,
+                                                          target_height=IMAGE_HEIGHT,
+                                                          target_width=IMAGE_WIDTH)
 
     # image.set_shape([height[0], width[0], 3])
-    # images = tf.train.shuffle_batch([resize_image],
-    #                                 batch_size=2,
-    #                                 capacity=30,
-    #                                 num_threads=2,
-    #                                 min_after_dequeue=10)
-    return height[0], width[0]
+    images = tf.train.shuffle_batch([resize_image],
+                                    batch_size=2,
+                                    capacity=30,
+                                    num_threads=2,
+                                    min_after_dequeue=10)
+    return images
 
 if __name__ == '__main__':
     # get_images()
@@ -294,8 +295,9 @@ if __name__ == '__main__':
     # [image, x1, y1] = provider.get(['image', 'object/x1', 'object/y1']) # , x2, y2, x3, y3, x4, y4
     # print(x1)
 
-    # image = read_and_decode(filenames)
-    height, width = read_and_decode(filenames)
+    image = read_and_decode(filenames)
+
+    # image, height, width, shape = read_and_decode(filenames)
 
     init = tf.group(tf.global_variables_initializer(),
                     tf.local_variables_initializer())
@@ -307,10 +309,11 @@ if __name__ == '__main__':
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(coord=coord)
 
-        # img = sess.run(image)
-        # print(img[0, :, :, :].shape)
-        h, w = sess.run([height, width])
-        print(h, w)
+        img = sess.run(image)
+        print(img[0, :, :, :].shape)
+        # img, h, w, sh= sess.run([image, height, width, shape])
+        # print(h, w, sh)
+        # print(img.shape)
 
         coord.request_stop()
         coord.join(threads)
