@@ -225,8 +225,8 @@ def get_tf_data(dataset_dir, file_pattern, reader=None):
                                 num_samples=200,
                                 )
 
-IMAGE_HEIGHT = 384
-IMAGE_WIDTH = 384
+IMAGE_HEIGHT = 2000
+IMAGE_WIDTH = 2000
 
 filenames = '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord'
 
@@ -297,13 +297,7 @@ if __name__ == '__main__':
 
     image = read_and_decode(filenames)
 
-    # image, height, width, shape = read_and_decode(filenames)
-
-    init = tf.group(tf.global_variables_initializer(),
-                    tf.local_variables_initializer())
-
     with tf.Session() as sess:
-        # sess.run(init)
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
         coord = tf.train.Coordinator()
@@ -311,9 +305,9 @@ if __name__ == '__main__':
 
         img = sess.run(image)
         print(img[0, :, :, :].shape)
-        # img, h, w, sh= sess.run([image, height, width, shape])
-        # print(h, w, sh)
-        # print(img.shape)
+        for i in range(2):
+          im = Image.fromarray(img[i])
+          im.save('out%d.jpg' % i)
 
         coord.request_stop()
         coord.join(threads)
