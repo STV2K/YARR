@@ -75,10 +75,14 @@ def resnet_v1_50(inputs,
                  reuse=None,
                  scope='resnet_v1_50'):
     blocks = [
-        resnet_utils.Block('block1', bottleneck, [(256, 64, 1)] * 2 + [(256, 64, 2)]),
-        resnet_utils.Block('block2', bottleneck, [(512, 128, 1)] * 3 + [(512, 128, 2)]),
-        resnet_utils.Block('block3', bottleneck, [(1024, 256, 1)] * 5 + [(1024, 256, 2)]),
-        resnet_utils.Block('block4', bottleneck, [(2048, 512, 1)] * 3)
+        # resnet_utils.Block('block1', bottleneck, [(256, 64, 1)] * 2 + [(256, 64, 2)]),
+        # resnet_utils.Block('block2', bottleneck, [(512, 128, 1)] * 3 + [(512, 128, 2)]),
+        # resnet_utils.Block('block3', bottleneck, [(1024, 256, 1)] * 5 + [(1024, 256, 2)]),
+        # resnet_utils.Block('block4', bottleneck, [(2048, 512, 1)] * 3)
+        resnet_utils.Block('block1', bottleneck, [(256, 64, 1)] * 3]),
+        resnet_utils.Block('block2', bottleneck, [(512, 128, 2)] + [(512, 128, 1) * 3]),
+        resnet_utils.Block('block3', bottleneck, [(1024, 256, 2)] + [(1024, 256, 2) * 5]),
+        resnet_utils.Block('block4', bottleneck, [(2048, 512, 2)] + [(2048, 512, 1) * 2])
     ]
 
     return resnet_v1(inputs, blocks, num_classes=num_classes, is_training=is_training,

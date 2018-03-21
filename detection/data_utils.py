@@ -230,14 +230,15 @@ def read_and_decode():
                                     dynamic_pad=True)
     return images, x1s, x1_rs, bbox_nums
 
-# if __name__ == '__main__':
-    # get_images()
-    # polys = load_annotation('/home/hcxiao/Datasets/STV2k/stv2k_train/STV2K_tr_0001.txt')
-    # print(polys)
-    # data_generator = get_batch(4, 32, 8)
-    # data = next(data_generator)
-    # run("/media/data2/hcx_data/STV2KTF/", shuffling=True)
-    # test_read()
+
+def test_get_image_annotation:
+    get_images()
+    polys = load_annotation('/home/hcxiao/Datasets/STV2k/stv2k_train/STV2K_tr_0001.txt')
+    print(polys)
+
+
+def generate_tfrecord:
+    run("/media/data2/hcx_data/STV2KTF/", shuffling=True)
 
 
 def test_read():
@@ -264,5 +265,6 @@ def test_read():
         coord.request_stop()
         coord.join(threads)
 
-if __name__ == '__main__':
-    test_read()
+
+# if __name__ == '__main__':
+#     test_read()

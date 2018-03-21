@@ -47,12 +47,15 @@ default_params = STVParams(
 
 def model(images, weight_decay=1e-5, is_training=True):
   with slim.arg_scope(resnet_utils.resnet_arg_scope(weight_decay=weight_decay)):
-        logits, end_points = resnet_v1.resnet_v1_50(images,
+        net, end_points = resnet_v1.resnet_v1_50(images,
                               is_training=is_training,
                               scope='resnet_v1_50')
-        
+        print('block 1 shape: %s' % end_points['resnet_v1_50/block1'].shape)
+        print('block 2 shape: %s' % end_points['resnet_v1_50/block2'].shape)
+        print('block 3 shape: %s' % end_points['resnet_v1_50/block3'].shape)
+        print('block 4 shape: %s' % end_points['resnet_v1_50/block4'].shape)
         # TODO: add layer
         # net = end_points['resnet_v1_50/block2']
         # net = slim.conv2d(net, 512, [3, 3], padding=1)
 
-        return logits, end_points
+        return net, end_points
