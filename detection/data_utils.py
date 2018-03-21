@@ -218,14 +218,17 @@ def read_and_decode():
     #                                                       target_width=IMAGE_WIDTH)
     resize_image = tf.image.resize_images(image, size=[IMAGE_HEIGHT, IMAGE_WIDTH])
 
+    resize_ratio_x = tf.cast(IMAGE_WIDTH / width[0], tf.float32)
+    x1_r = x1 * resize_ratio_x
+
     # image.set_shape([height[0], width[0], 3])
-    images, x1s, bbox_nums = tf.train.batch([resize_image, x1, bbox_num],
+    images, x1s, x1_rs, bbox_nums = tf.train.batch([resize_image, x1, x1_r, bbox_num],
                                     batch_size=10,
                                     capacity=30,
                                     num_threads=2,
                                     # min_after_dequeue=10,
                                     dynamic_pad=True)
-    return images, x1s, bbox_nums
+    return images, x1s, x1_rs, bbox_nums
 
 # if __name__ == '__main__':
     # get_images()
@@ -234,10 +237,11 @@ def read_and_decode():
     # data_generator = get_batch(4, 32, 8)
     # data = next(data_generator)
     # run("/media/data2/hcx_data/STV2KTF/", shuffling=True)
+    # test_read()
 
 
 def test_read():
-    image, x1, bbox_num = read_and_decode()
+    image, x1, x1_r, bbox_num = read_and_decode()
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
@@ -245,19 +249,20 @@ def test_read():
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(coord=coord)
 
-        i = 0
-        while i < 1215:
-            img, x1s, bbox_nums = sess.run([image, x1, bbox_num])
-            for j in range(10):
-                # im = Image.fromarray(np.uint8(img[i]))
-                # im.save('out%d.jpg' % i)
-                # print(img[j, :, :, :].shape)
-                # print(x1s[j])
-                # print(bbox_nums[j])
-                i += 1
-                print(i, bbox_nums[j])
+        img, x1s, x1_rs, bbox_nums = sess.run([image, x1, x1_r, bbox_num])
+        print(x1s[0])
+        print(x1_rs[0])
+        # for j in range(10):
+            # im = Image.fromarray(np.uint8(img[i]))
+            # im.save('out%d.jpg' % i)
+            # print(img[j, :, :, :].shape)
+            # print(x1s[j])
+            # print(bbox_nums[j])
+            # i += 1
+            # print(i, bbox_nums[j])
 
         coord.request_stop()
         coord.join(threads)
 
-
+if __name__ == '__main__':
+    test_read()
