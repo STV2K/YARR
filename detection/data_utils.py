@@ -231,13 +231,13 @@ def read_and_decode():
     return images, x1s, x1_rs, bbox_nums
 
 
-def test_get_image_annotation:
+def test_get_image_annotation():
     get_images()
     polys = load_annotation('/home/hcxiao/Datasets/STV2k/stv2k_train/STV2K_tr_0001.txt')
     print(polys)
 
 
-def generate_tfrecord:
+def generate_tfrecord():
     run("/media/data2/hcx_data/STV2KTF/", shuffling=True)
 
 

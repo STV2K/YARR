@@ -12,10 +12,10 @@ def bottleneck(inputs, depth, depth_bottleneck, stride, rate = 1,
         if depth == depth_in:
             shortcut = resnet_utils.subsample(inputs, stride, 'shortcut')
         else:
-            shortcut = slim.conv2d(inputs, depth, [1, 1], stride=1, activation_fn=None, scope='shortcut')
+            shortcut = slim.conv2d(inputs, depth, [1, 1], stride=stride, activation_fn=None, scope='shortcut') # origin: stride = 1
 
         residual = slim.conv2d(inputs, depth_bottleneck, [1, 1], stride=1, scope='conv1')
-        residual = resnet_utils.conv2d_same(residual, depth_bottleneck, 3, stride=stride, scope='conv2') # why stride=stride?
+        residual = resnet_utils.conv2d_same(residual, depth_bottleneck, 3, stride=stride, scope='conv2')
         residual = slim.conv2d(residual, depth, [1, 1], stride=1, activation_fn=None, scope='conv3')
 
         output = tf.nn.relu(residual + shortcut)
@@ -79,10 +79,10 @@ def resnet_v1_50(inputs,
         # resnet_utils.Block('block2', bottleneck, [(512, 128, 1)] * 3 + [(512, 128, 2)]),
         # resnet_utils.Block('block3', bottleneck, [(1024, 256, 1)] * 5 + [(1024, 256, 2)]),
         # resnet_utils.Block('block4', bottleneck, [(2048, 512, 1)] * 3)
-        resnet_utils.Block('block1', bottleneck, [(256, 64, 1)] * 3]),
-        resnet_utils.Block('block2', bottleneck, [(512, 128, 2)] + [(512, 128, 1) * 3]),
-        resnet_utils.Block('block3', bottleneck, [(1024, 256, 2)] + [(1024, 256, 2) * 5]),
-        resnet_utils.Block('block4', bottleneck, [(2048, 512, 2)] + [(2048, 512, 1) * 2])
+        resnet_utils.Block('block1', bottleneck, [(256, 64, 1)] * 3),
+        resnet_utils.Block('block2', bottleneck, [(512, 128, 2)] + [(512, 128, 1)] * 3),
+        resnet_utils.Block('block3', bottleneck, [(1024, 256, 2)] + [(1024, 256, 1)] * 5),
+        resnet_utils.Block('block4', bottleneck, [(2048, 512, 2)] + [(2048, 512, 1)] * 2)
     ]
 
     return resnet_v1(inputs, blocks, num_classes=num_classes, is_training=is_training,
