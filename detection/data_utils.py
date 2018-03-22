@@ -206,9 +206,23 @@ def read_and_decode():
 
     bbox_num = tf.cast(features['image/object/bbox/num'], tf.int32)
     x1 = tf.sparse_tensor_to_dense(features['image/object/bbox/x1'])
-    print(x1, bbox_num)
+    y1 = tf.sparse_tensor_to_dense(features['image/object/bbox/y1'])
+    x2 = tf.sparse_tensor_to_dense(features['image/object/bbox/x2'])
+    y2 = tf.sparse_tensor_to_dense(features['image/object/bbox/y2'])
+    x3 = tf.sparse_tensor_to_dense(features['image/object/bbox/x3'])
+    y3 = tf.sparse_tensor_to_dense(features['image/object/bbox/y3'])
+    x4 = tf.sparse_tensor_to_dense(features['image/object/bbox/x4'])
+    y4 = tf.sparse_tensor_to_dense(features['image/object/bbox/y4'])
+
     bbox_shape = tf.stack([bbox_num[0]])
     x1 = tf.reshape(x1, bbox_shape)
+    y1 = tf.reshape(y1, bbox_shape)
+    x2 = tf.reshape(x2, bbox_shape)
+    y2 = tf.reshape(y2, bbox_shape)
+    x3 = tf.reshape(x3, bbox_shape)
+    y3 = tf.reshape(y3, bbox_shape)
+    x4 = tf.reshape(x4, bbox_shape)
+    y4 = tf.reshape(y4, bbox_shape)
 
     image_shape = tf.stack([height[0], width[0], 3])
     image = tf.reshape(image, image_shape)
@@ -219,16 +233,25 @@ def read_and_decode():
     resize_image = tf.image.resize_images(image, size=[IMAGE_HEIGHT, IMAGE_WIDTH])
 
     resize_ratio_x = tf.cast(IMAGE_WIDTH / width[0], tf.float32)
+    resize_ratio_y = tf.cast(IMAGE_HEIGHT / height[0], tf.float32)
     x1_r = x1 * resize_ratio_x
+    x2_r = x2 * resize_ratio_x
+    x3_r = x3 * resize_ratio_x
+    x4_r = x4 * resize_ratio_x
+    y1_r = y1 * resize_ratio_y
+    y2_r = y2 * resize_ratio_y
+    y3_r = y3 * resize_ratio_y
+    y4_r = y4 * resize_ratio_y
 
     # image.set_shape([height[0], width[0], 3])
-    images, x1s, x1_rs, bbox_nums = tf.train.batch([resize_image, x1, x1_r, bbox_num],
-                                    batch_size=10,
-                                    capacity=30,
-                                    num_threads=2,
-                                    # min_after_dequeue=10,
-                                    dynamic_pad=True)
-    return images, x1s, x1_rs, bbox_nums
+    images, x1_rs, x2_rs, x3_rs, x4_rs, y1_rs, y2_rs, y3_rs, y4_rs, bbox_nums = \
+        tf.train.batch([resize_image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num],
+                        batch_size=10,
+                        capacity=30,
+                        num_threads=2,
+                        # min_after_dequeue=10,
+                        dynamic_pad=True)
+    return images, x1_rs, x2_rs, x3_rs, x4_rs, y1_rs, y2_rs, y3_rs, y4_rs, bbox_nums
 
 
 def test_get_image_annotation():
@@ -242,7 +265,7 @@ def generate_tfrecord():
 
 
 def test_read():
-    image, x1, x1_r, bbox_num = read_and_decode()
+    image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num = read_and_decode()
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
@@ -250,9 +273,17 @@ def test_read():
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(coord=coord)
 
-        img, x1s, x1_rs, bbox_nums = sess.run([image, x1, x1_r, bbox_num])
-        print(x1s[0])
+        img, x1_rs, x2_rs, x3_rs, x4_rs, y1_rs, y2_rs, y3_rs, y4_rs, bbox_nums = \
+            sess.run([image, x1, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
         print(x1_rs[0])
+        print(x2_rs[0])
+        print(x3_rs[0])
+        print(x4_rs[0])
+        print(y1_rs[0])
+        print(y2_rs[0])
+        print(y3_rs[0])
+        print(y4_rs[0])
+
         # for j in range(10):
             # im = Image.fromarray(np.uint8(img[i]))
             # im.save('out%d.jpg' % i)
