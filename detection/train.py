@@ -7,7 +7,7 @@ import data_utils as data_utils
 from nets import STVNet
 
 slim = tf.contrib.slim
-os.environ["CUDA_VISIBLE_DEVICES"] = "2" # config.FLAGS.gpu_list
+os.environ["CUDA_VISIBLE_DEVICES"] = "3" # config.FLAGS.gpu_list
 
 
 def main():
@@ -29,12 +29,13 @@ def main():
 
         print('block 1 shape: ',  f_geo['resnet_v1_50/block1'].shape)
         print('block 2 shape: ',  f_geo['resnet_v1_50/block2'].shape)
-        print('block 3 shape: ',  f_geo['block3'].shape)
+        print('block 3 shape: ',  f_geo['resnet_v1_50/block3'].shape)
         print('block 4 shape: ',  f_geo['block4'].shape)
         print('block 5 shape: ',  f_geo['block5'].shape)
         print('block 6 shape: ',  f_geo['block6'].shape)
         print('block 7 shape: ',  f_geo['block7'].shape)
         print('block 8 shape: ',  f_geo['block8'].shape)
+        print('block 9 shape: ',  f_geo['block9'].shape)
         print(f_score.shape, b_bbox_num[0])
 
         coord.request_stop()
