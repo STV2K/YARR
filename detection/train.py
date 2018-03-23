@@ -12,7 +12,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "2" # config.FLAGS.gpu_list
 
 def main():
 
-    image, x1, x1_r, bbox_num = data_utils.read_and_decode()
+    image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num = data_utils.read_and_decode()
     
     inputs = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='inputs')
     logits, end_points = STVNet.model(inputs)
@@ -23,7 +23,8 @@ def main():
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(coord=coord)
 
-        b_image, b_x1, b_x1_r, b_bbox_num = sess.run([image, x1, x1_r, bbox_num])
+        b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
+            sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
         f_score, f_geo = sess.run([logits, end_points], feed_dict={inputs: [b_image[0]]})
 
         print('block 1 shape: ',  f_geo['resnet_v1_50/block1'].shape)

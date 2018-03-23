@@ -274,7 +274,7 @@ def test_read():
         threads = tf.train.start_queue_runners(coord=coord)
 
         img, x1_rs, x2_rs, x3_rs, x4_rs, y1_rs, y2_rs, y3_rs, y4_rs, bbox_nums = \
-            sess.run([image, x1, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
+            sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
         print(x1_rs[0])
         print(x2_rs[0])
         print(x3_rs[0])
@@ -297,5 +297,5 @@ def test_read():
         coord.join(threads)
 
 
-# if __name__ == '__main__':
-#     test_read()
+if __name__ == '__main__':
+    test_read()
