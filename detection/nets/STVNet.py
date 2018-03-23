@@ -45,6 +45,29 @@ default_params = STVParams(
       prior_scaling=[0.1, 0.1, 0.2, 0.2]
       )
 
+def stv_arg_scope(weight_decay=0.0005, data_format='NHWC'):
+    """Defines the VGG arg scope.
+
+    Args:
+      weight_decay: The l2 regularization coefficient.
+
+    Returns:
+      An arg_scope.
+    """
+    with slim.arg_scope([slim.conv2d, slim.fully_connected],
+                        activation_fn=tf.nn.relu,
+                        weights_regularizer=slim.l2_regularizer(weight_decay),
+                        weights_initializer=tf.contrib.layers.xavier_initializer(),
+                        biases_initializer=tf.zeros_initializer()):
+        with slim.arg_scope([slim.conv2d, slim.max_pool2d],
+                            padding='SAME',
+                            data_format=data_format):
+            with slim.arg_scope([custom_layers.pad2d,
+                                 custom_layers.l2_normalization,
+                                 custom_layers.channel_to_last],
+                                data_format=data_format) as sc:
+                return sc
+
 def model(images, weight_decay=1e-5, is_training=True):
   with slim.arg_scope(resnet_utils.resnet_arg_scope(weight_decay=weight_decay)):
         net, end_points = resnet_v1.resnet_v1_50(images,
@@ -52,9 +75,43 @@ def model(images, weight_decay=1e-5, is_training=True):
                               scope='resnet_v1_50')
         print('block 1 shape: %s' % end_points['resnet_v1_50/block1'].shape)
         print('block 2 shape: %s' % end_points['resnet_v1_50/block2'].shape)
-        print('block 3 shape: %s' % end_points['resnet_v1_50/block3'].shape)
-        print('block 4 shape: %s' % end_points['resnet_v1_50/block4'].shape)
+
         # TODO: add layer
+        arg_scope = stv_arg_scope(weight_decay=0.00004)
+        with slim.arg_scope(arg_scope):
+            # Block 3: let's dilate the hell out of it!
+            net = slim.conv2d(net, 1024, [3, 3], rate=6, scope='conv6')
+            end_points['block3'] = net
+            net = tf.layers.dropout(net, rate=dropout_keep_prob, training=is_training)
+            # Block 4: 1x1 conv. Because the fuck.
+            net = slim.conv2d(net, 1024, [1, 1], scope='conv7')
+            end_points['block4'] = net
+            net = tf.layers.dropout(net, rate=dropout_keep_prob, training=is_training)
+
+            # Block 8/9/10/11: 1x1 and 3x3 convolutions stride 2 (except lasts).
+            end_point = 'block5'
+            with tf.variable_scope(end_point):
+                net = slim.conv2d(net, 256, [1, 1], scope='conv1x1')
+                net = custom_layers.pad2d(net, pad=(1, 1))
+                net = slim.conv2d(net, 512, [3, 3], stride=2, scope='conv3x3', padding='VALID')
+            end_points[end_point] = net
+            end_point = 'block6'
+            with tf.variable_scope(end_point):
+                net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
+                net = custom_layers.pad2d(net, pad=(1, 1))
+                net = slim.conv2d(net, 256, [3, 3], stride=2, scope='conv3x3', padding='VALID')
+            end_points[end_point] = net
+            end_point = 'block7'
+            with tf.variable_scope(end_point):
+                net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
+                net = slim.conv2d(net, 256, [3, 3], scope='conv3x3', padding='VALID')
+            end_points[end_point] = net
+            end_point = 'block8'
+            with tf.variable_scope(end_point):
+                net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
+                net = slim.conv2d(net, 256, [3, 3], scope='conv3x3', padding='VALID')
+            end_points[end_point] = net
+
         # net = end_points['resnet_v1_50/block2']
         # net = slim.conv2d(net, 512, [3, 3], padding=1)
 

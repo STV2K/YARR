@@ -29,8 +29,12 @@ def main():
 
         print('block 1 shape: ',  f_geo['resnet_v1_50/block1'].shape)
         print('block 2 shape: ',  f_geo['resnet_v1_50/block2'].shape)
-        print('block 3 shape: ',  f_geo['resnet_v1_50/block3'].shape)
-        print('block 4 shape: ',  f_geo['resnet_v1_50/block4'].shape)
+        print('block 3 shape: ',  f_geo['block3'].shape)
+        print('block 4 shape: ',  f_geo['block4'].shape)
+        print('block 5 shape: ',  f_geo['block5'].shape)
+        print('block 6 shape: ',  f_geo['block6'].shape)
+        print('block 7 shape: ',  f_geo['block7'].shape)
+        print('block 8 shape: ',  f_geo['block8'].shape)
         print(f_score.shape, b_bbox_num[0])
 
         coord.request_stop()
