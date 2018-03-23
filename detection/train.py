@@ -15,7 +15,7 @@ def main():
     image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num = data_utils.read_and_decode()
     
     inputs = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='inputs')
-    logits, end_points = STVNet.model(inputs)
+    predictions, localisations, logits, end_points = STVNet.model(inputs)
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
@@ -25,7 +25,7 @@ def main():
 
         b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
             sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
-        f_score, f_geo = sess.run([logits, end_points], feed_dict={inputs: [b_image[0]]})
+        pres, locs, f_score, f_geo = sess.run([predictions, localisations, logits, end_points], feed_dict={inputs: [b_image[0]]})
 
         print('block 1 shape: ',  f_geo['resnet_v1_50/block1'].shape)
         print('block 2 shape: ',  f_geo['resnet_v1_50/block2'].shape)
