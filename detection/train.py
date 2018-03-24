@@ -36,7 +36,7 @@ def generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox
     for i in range(len(b_bbox_num)):
         bboxes = turn_into_bbox(b_x1[i], b_x2[i], b_x3[i], b_x4[i], b_y1[i], b_y2[i], b_y3[i], b_y4[i], b_bbox_num[i][0])
         batch_bboxes.append(bboxes)
-    print(bboxes)
+    # print(bboxes)
 
     return batch_bboxes
 
@@ -61,7 +61,7 @@ def main():
         b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
 
 
-        pres, locs, f_score, f_geo = sess.run([predictions, localisations, logits, end_points], feed_dict={inputs: [b_image[0]]})
+        pres, locs, f_score, f_geo = sess.run([predictions, localisations, logits, end_points], feed_dict={inputs: b_image})
 
         print('block 1 shape: ',  f_geo['resnet_v1_50/block1'].shape)
         print('block 2 shape: ',  f_geo['resnet_v1_50/block2'].shape)

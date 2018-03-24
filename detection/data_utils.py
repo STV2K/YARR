@@ -246,7 +246,7 @@ def read_and_decode():
     # image.set_shape([height[0], width[0], 3])
     images, x1_rs, x2_rs, x3_rs, x4_rs, y1_rs, y2_rs, y3_rs, y4_rs, bbox_nums = \
         tf.train.batch([resize_image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num],
-                        batch_size=10,
+                        batch_size=config.FLAGS.batch_size,
                         capacity=30,
                         num_threads=2,
                         # min_after_dequeue=10,
