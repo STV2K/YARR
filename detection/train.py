@@ -74,6 +74,11 @@ def main():
         print('block 9 shape: ',  f_geo['block9'].shape)
         print(f_score[0].shape, b_bbox_num[0])
 
+        anchors = STVNet.ssd_anchors_all_layers()
+        # print(len(anchors))
+        # print(anchors[4])
+        # print(anchors[5])
+
         coord.request_stop()
         coord.join(threads)
 
