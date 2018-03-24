@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 from collections import namedtuple
 from . import resnet_v1
 from . import resnet_utils

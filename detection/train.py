@@ -19,6 +19,12 @@ def turn_into_bbox(x1, x2, x3, x4, y1, y2, y3, y4, num):
         xmax = max(x)
         ymin = min(y)
         ymax = max(y)
+
+        if xmin < 0:
+            xmin = 0
+        if ymin < 0:
+            ymin = 0
+
         bbox = [ymin, xmin, ymax, xmax]
         bboxes.append(bbox)
 
@@ -28,8 +34,9 @@ def turn_into_bbox(x1, x2, x3, x4, y1, y2, y3, y4, num):
 def generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num):
     batch_bboxes = []
     for i in range(len(b_bbox_num)):
-        bboxes = turn_into_bbox(b_x1[i], b_x2[i], b_x3[i], b_x4[i], b_y1[i], b_y2[i], b_y3[i], b_y4[i], b_bbox_num[i])
+        bboxes = turn_into_bbox(b_x1[i], b_x2[i], b_x3[i], b_x4[i], b_y1[i], b_y2[i], b_y3[i], b_y4[i], b_bbox_num[i][0])
         batch_bboxes.append(bboxes)
+    print(bboxes)
 
     return batch_bboxes
 
@@ -52,7 +59,6 @@ def main():
             sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
 
         b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
-        print(b_bboxes)
 
 
         pres, locs, f_score, f_geo = sess.run([predictions, localisations, logits, end_points], feed_dict={inputs: [b_image[0]]})
