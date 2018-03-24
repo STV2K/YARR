@@ -10,6 +10,31 @@ slim = tf.contrib.slim
 os.environ["CUDA_VISIBLE_DEVICES"] = "3" # config.FLAGS.gpu_list
 
 
+def turn_into_bbox(x1, x2, x3, x4, y1, y2, y3, y4, num):
+    bboxes = []
+    for i in range(num):
+        x = [x1[i], x2[i], x3[i], x4[i]]
+        y = [y1[i], y2[i], y3[i], y4[i]]
+        xmin = min(x)
+        xmax = max(x)
+        ymin = min(y)
+        ymax = max(y)
+        bbox = [ymin, xmin, ymax, xmax]
+        bboxes.append(bbox)
+
+    return bboxes
+
+
+def generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num):
+    batch_bboxes = []
+    for i in range(len(b_bbox_num)):
+        bboxes = turn_into_bbox(b_x1[i], b_x2[i], b_x3[i], b_x4[i], b_y1[i], b_y2[i], b_y3[i], b_y4[i], b_bbox_num[i])
+        batch_bboxes.append(bboxes)
+
+    return batch_bboxes
+
+
+
 def main():
 
     image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num = data_utils.read_and_decode()
@@ -25,6 +50,11 @@ def main():
 
         b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
             sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
+
+        b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
+        print(b_bboxes)
+
+
         pres, locs, f_score, f_geo = sess.run([predictions, localisations, logits, end_points], feed_dict={inputs: [b_image[0]]})
 
         print('block 1 shape: ',  f_geo['resnet_v1_50/block1'].shape)
@@ -36,7 +66,7 @@ def main():
         print('block 7 shape: ',  f_geo['block7'].shape)
         print('block 8 shape: ',  f_geo['block8'].shape)
         print('block 9 shape: ',  f_geo['block9'].shape)
-        print(f_score.shape, b_bbox_num[0])
+        print(f_score[0].shape, b_bbox_num[0])
 
         coord.request_stop()
         coord.join(threads)
