@@ -138,6 +138,7 @@ def model(images,
 
         return predictions, localisations, logits, end_points
 
+# for each feature map, calculate the prediction
 def ssd_multibox_layer(inputs,
                        num_classes,
                        sizes,
@@ -186,6 +187,7 @@ def tensor_shape(x, rank=3):
                 for s, d in zip(static_shape, dynamic_shape)]
 
 
+# return anchors
 def ssd_anchors_all_layers(img_shape=default_params.img_shape,
                            layers_shape=default_params.feat_shapes,
                            anchor_sizes=default_params.anchor_sizes,
@@ -206,6 +208,7 @@ def ssd_anchors_all_layers(img_shape=default_params.img_shape,
     return layers_anchors
 
 
+# return anchor of one layer
 def ssd_anchor_one_layer(img_shape,
                          feat_shape,
                          sizes,
@@ -261,11 +264,52 @@ def ssd_anchor_one_layer(img_shape,
     return y, x, h, w
 
 
+# encode gt
+def tf_ssd_bboxes_encode(labels,
+                         bboxes,
+                         anchors,
+                         num_classes=default_params.num_classes,
+                         # no_annotation_label,
+                         ignore_threshold=0.5,
+                         prior_scaling=[0.1, 0.1, 0.2, 0.2],
+                         dtype=tf.float32,
+                         scope='ssd_bboxes_encode'):
+    """Encode groundtruth labels and bounding boxes using SSD net anchors.
+    Encoding boxes for all feature layers.
+
+    Arguments:
+      labels: 1D Tensor(int64) containing groundtruth labels;
+      bboxes: Nx4 Tensor(float) with bboxes relative coordinates;
+      anchors: List of Numpy array with layer anchors;
+      matching_threshold: Threshold for positive match with groundtruth bboxes;
+      prior_scaling: Scaling of encoded coordinates.
+
+    Return:
+      (target_labels, target_localizations, target_scores):
+        Each element is a list of target Tensors.
+    """
+    with tf.name_scope(scope):
+        target_labels = []
+        target_localizations = []
+        target_scores = []
+        for i, anchors_layer in enumerate(anchors):
+            with tf.name_scope('bboxes_encode_block_%i' % i):
+                t_labels, t_loc, t_scores = \
+                    tf_ssd_bboxes_encode_layer(labels, bboxes, anchors_layer,
+                                               num_classes, # no_annotation_label,
+                                               ignore_threshold,
+                                               prior_scaling, dtype)
+                target_labels.append(t_labels)
+                target_localizations.append(t_loc)
+                target_scores.append(t_scores)
+        return target_labels, target_localizations, target_scores
+
+# encode gt for one layer
 def tf_ssd_bboxes_encode_layer(labels,
                                bboxes,
                                anchors_layer,
                                num_classes,
-                               no_annotation_label,
+                               # no_annotation_label,
                                ignore_threshold=0.5,
                                prior_scaling=[0.1, 0.1, 0.2, 0.2],
                                dtype=tf.float32):
