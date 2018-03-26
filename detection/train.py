@@ -15,10 +15,10 @@ def turn_into_bbox(x1, x2, x3, x4, y1, y2, y3, y4, num):
     for i in range(num):
         x = [x1[i], x2[i], x3[i], x4[i]]
         y = [y1[i], y2[i], y3[i], y4[i]]
-        xmin = min(x)
-        xmax = max(x)
-        ymin = min(y)
-        ymax = max(y)
+        xmin = min(x) / 300.0
+        xmax = max(x) / 300.0
+        ymin = min(y) / 300.0
+        ymax = max(y) / 300.0
 
         if xmin < 0:
             xmin = 0
@@ -49,6 +49,11 @@ def main():
     inputs = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='inputs')
     predictions, localisations, logits, end_points = STVNet.model(inputs)
 
+    anchors = STVNet.ssd_anchors_all_layers()
+    label = tf.placeholder(tf.int64, shape=[None], name='labels')
+    bboxes = tf.placeholder(tf.float32, shape=[None, 4], name='bboxes')
+    gc, gl, gs = STVNet.tf_ssd_bboxes_encode(label, bboxes, anchors)
+
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
@@ -75,13 +80,19 @@ def main():
         print('f_score[0].shape : ', f_score[0].shape)
         print('box_num : ', b_bbox_num[0])
 
-        anchors = STVNet.ssd_anchors_all_layers()
+        # anchors = STVNet.ssd_anchors_all_layers()
         # print(len(anchors))
         # print(anchors[4])
         # print(anchors[5])
 
-        labels = [1 for i in range(b_bbox_num[0][0])]\
-        gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_encode(labels, b_bboxes[0], anchors)
+        labels = [1 for i in range(b_bbox_num[0][0])]
+        # gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_encode(labels, b_bboxes[0], anchors)
+        gclasses, glocal, gscores = sess.run([gc, gl, gs], feed_dict={label: labels, bboxes: b_bboxes[0]})
+
+        # print('gclasses0: ', gclasses[0])
+        # print('glocal4: ', glocal[4])
+        # print(len(glocal[4]), len(glocal[4][0]), len(glocal[4][0][0]), len(glocal[4][0][0][0]))
+        print('gscores: ', gscores)
 
         coord.request_stop()
         coord.join(threads)

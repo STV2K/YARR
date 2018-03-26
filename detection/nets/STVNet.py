@@ -27,7 +27,7 @@ STVParams = namedtuple('STVParameters', ['img_shape',
 
 default_params = STVParams(
       img_shape=(300, 300),
-      num_classes=1,
+      num_classes=2,
       no_annotation_label=21,
       feat_layers=['resnet_v1_50/block2', 'block5', 'block6', 'block7', 'block8', 'block9'],
       feat_shapes=[(38, 38), (19, 19), (10, 10), (5, 5), (3, 3), (1, 1)],
