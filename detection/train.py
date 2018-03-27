@@ -54,6 +54,8 @@ def main():
     bboxes = tf.placeholder(tf.float32, shape=[None, 4], name='bboxes')
     gc, gl, gs = STVNet.tf_ssd_bboxes_encode(label, bboxes, anchors)
 
+    
+
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
@@ -93,6 +95,8 @@ def main():
         # print('glocal4: ', glocal[4])
         # print(len(glocal[4]), len(glocal[4][0]), len(glocal[4][0][0]), len(glocal[4][0][0][0]))
         print('gscores: ', gscores)
+
+        STVNet.ssd_losses(f_score, locs, gclasses, glocal, gscores)
 
         coord.request_stop()
         coord.join(threads)
