@@ -439,14 +439,14 @@ def tf_ssd_bboxes_encode_layer(labels,
     return feat_labels, feat_localizations, feat_scores
 
 
-    def ssd_losses(logits, localisations,
-               gclasses, glocalisations, gscores,
-               match_threshold=0.5,
-               negative_ratio=3.,
-               alpha=1.,
-               label_smoothing=0.,
-               device='/cpu:0',
-               scope=None):
+def ssd_losses(logits, localisations,
+           gclasses, glocalisations, gscores,
+           match_threshold=0.5,
+           negative_ratio=3.,
+           alpha=1.,
+           label_smoothing=0.,
+           device='/cpu:0',
+           scope=None):
     with tf.name_scope(scope, 'ssd_losses'):
         lshape = tfe.get_shape(logits[0], 5)
         num_classes = lshape[-1]
