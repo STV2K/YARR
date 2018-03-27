@@ -449,7 +449,7 @@ def ssd_losses(logits, localisations,
            device='/cpu:0',
            scope=None):
     with tf.name_scope(scope, 'ssd_losses'):
-        lshape = tfe.get_shape(logits[0], 5)
+        lshape = tfe.get_shape(tf.convert_to_tensor(logits[0]), 5)
         num_classes = lshape[-1]
         batch_size = lshape[0]
 
@@ -499,6 +499,8 @@ def ssd_losses(logits, localisations,
         nmask = tf.logical_and(nmask, nvalues < max_hard_pred)
         fnmask = tf.cast(nmask, dtype)
 
+        batch_size = tf.cast(batch_size, tf.float32)
+
         # Add cross-entropy loss.
         with tf.name_scope('cross_entropy_pos'):
             loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
@@ -519,3 +521,6 @@ def ssd_losses(logits, localisations,
             loss = custom_layers.abs_smooth(localisations - glocalisations)
             loss = tf.div(tf.reduce_sum(loss * weights), batch_size, name='value')
             tf.losses.add_loss(loss)
+        
+        # add return to run
+        return loss

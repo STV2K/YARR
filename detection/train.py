@@ -54,7 +54,7 @@ def main():
     bboxes = tf.placeholder(tf.float32, shape=[None, 4], name='bboxes')
     gc, gl, gs = STVNet.tf_ssd_bboxes_encode(label, bboxes, anchors)
 
-    
+    # loss = STVNet.ssd_losses(logits, localisations, gc, gl, gs) 
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
@@ -82,24 +82,20 @@ def main():
         print('f_score[0].shape : ', f_score[0].shape)
         print('box_num : ', b_bbox_num[0])
 
-        # anchors = STVNet.ssd_anchors_all_layers()
-        # print(len(anchors))
-        # print(anchors[4])
-        # print(anchors[5])
-
         labels = [1 for i in range(b_bbox_num[0][0])]
-        # gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_encode(labels, b_bboxes[0], anchors)
         gclasses, glocal, gscores = sess.run([gc, gl, gs], feed_dict={label: labels, bboxes: b_bboxes[0]})
 
-        # print('gclasses0: ', gclasses[0])
-        # print('glocal4: ', glocal[4])
         # print(len(glocal[4]), len(glocal[4][0]), len(glocal[4][0][0]), len(glocal[4][0][0][0]))
-        # print('gscores: ', gscores)
 
-        # merged_summary_op = tf.summary.merge_all()
+        loss = STVNet.ssd_losses(f_score, locs, gclasses, glocal, gscores)
+        print('loss.eval: ', loss.eval())
+
+        tf.summary.scalar('loss', loss.eval())
+        merged = tf.summary.merge_all()
+        summary_str = sess.run(merged)
+
         summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs', sess.graph)
-
-        STVNet.ssd_losses(f_score, locs, gclasses, glocal, gscores)
+        summary_writer.add_summary(summary_str)
 
         coord.request_stop()
         coord.join(threads)
