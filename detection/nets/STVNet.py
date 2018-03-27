@@ -1,6 +1,7 @@
 import math
 import tensorflow as tf
 import numpy as np
+import tf_extended as tfe
 from collections import namedtuple
 from . import resnet_v1
 from . import resnet_utils
