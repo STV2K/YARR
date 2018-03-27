@@ -67,7 +67,7 @@ def main():
 
         b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
 
-        for i in range(config.FLAGS.batch_size):
+        for i in range(10):
             pres, locs, f_score, f_geo = sess.run([predictions, localisations, logits, end_points], feed_dict={inputs: [b_image[i]]})
 
             # print('block 1 shape: ',  f_geo['resnet_v1_50/block1'].shape)
@@ -81,8 +81,8 @@ def main():
             loss = STVNet.ssd_losses(f_score, locs, gclasses, glocal, gscores)
             print('loss.eval: ', loss.eval())
 
-            for ls in tf.get_collection(tf.GraphKeys.LOSSES):
-                tf.summary.scalar(ls.op.name, ls)
+        for ls in tf.get_collection(tf.GraphKeys.LOSSES):
+            tf.summary.scalar(ls.op.name, ls)
                 
         merged = tf.summary.merge_all()
         summary_str = sess.run(merged)
