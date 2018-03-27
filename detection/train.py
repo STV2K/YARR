@@ -67,32 +67,22 @@ def main():
 
         b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
 
+        for i in range(config.FLAGS.batch_size):
+            pres, locs, f_score, f_geo = sess.run([predictions, localisations, logits, end_points], feed_dict={inputs: [b_image[i]]})
 
-        pres, locs, f_score, f_geo = sess.run([predictions, localisations, logits, end_points], feed_dict={inputs: [b_image[0]]})
+            # print('block 1 shape: ',  f_geo['resnet_v1_50/block1'].shape)
+            # print('block 4 shape: ',  f_geo['block4'].shape)
 
-        print('block 1 shape: ',  f_geo['resnet_v1_50/block1'].shape)
-        print('block 2 shape: ',  f_geo['resnet_v1_50/block2'].shape)
-        print('block 3 shape: ',  f_geo['resnet_v1_50/block3'].shape)
-        print('block 4 shape: ',  f_geo['block4'].shape)
-        print('block 5 shape: ',  f_geo['block5'].shape)
-        print('block 6 shape: ',  f_geo['block6'].shape)
-        print('block 7 shape: ',  f_geo['block7'].shape)
-        print('block 8 shape: ',  f_geo['block8'].shape)
-        print('block 9 shape: ',  f_geo['block9'].shape)
-        print('f_score[0].shape : ', f_score[0].shape)
-        print('box_num : ', b_bbox_num[0])
+            labels = [1 for i in range(b_bbox_num[i][0])]
+            gclasses, glocal, gscores = sess.run([gc, gl, gs], feed_dict={label: labels, bboxes: b_bboxes[i]})
 
-        labels = [1 for i in range(b_bbox_num[0][0])]
-        gclasses, glocal, gscores = sess.run([gc, gl, gs], feed_dict={label: labels, bboxes: b_bboxes[0]})
+            # print(len(glocal[4]), len(glocal[4][0]), len(glocal[4][0][0]), len(glocal[4][0][0][0]))
 
-        # print(len(glocal[4]), len(glocal[4][0]), len(glocal[4][0][0]), len(glocal[4][0][0][0]))
+            loss = STVNet.ssd_losses(f_score, locs, gclasses, glocal, gscores)
+            print('loss.eval: ', loss.eval())
 
-        loss = STVNet.ssd_losses(f_score, locs, gclasses, glocal, gscores)
-        print('loss.eval: ', loss.eval())
-
-        # tf.summary.scalar('loss', loss.eval())
-        for loss in tf.get_collection(tf.GraphKeys.LOSSES):
-            tf.summary.scalar(loss.op.name, loss)
+            for ls in tf.get_collection(tf.GraphKeys.LOSSES):
+                tf.summary.scalar(ls.op.name, ls)
                 
         merged = tf.summary.merge_all()
         summary_str = sess.run(merged)
