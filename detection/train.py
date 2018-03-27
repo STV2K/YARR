@@ -90,7 +90,10 @@ def main():
         loss = STVNet.ssd_losses(f_score, locs, gclasses, glocal, gscores)
         print('loss.eval: ', loss.eval())
 
-        tf.summary.scalar('loss', loss.eval())
+        # tf.summary.scalar('loss', loss.eval())
+        for loss in tf.get_collection(tf.GraphKeys.LOSSES):
+            tf.summary.scalar(tf.summary.scalar(loss.op.name, loss)
+                
         merged = tf.summary.merge_all()
         summary_str = sess.run(merged)
 
