@@ -94,7 +94,10 @@ def main():
         # print('gclasses0: ', gclasses[0])
         # print('glocal4: ', glocal[4])
         # print(len(glocal[4]), len(glocal[4][0]), len(glocal[4][0][0]), len(glocal[4][0][0][0]))
-        print('gscores: ', gscores)
+        # print('gscores: ', gscores)
+
+        # merged_summary_op = tf.summary.merge_all()
+        summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs', sess.graph)
 
         STVNet.ssd_losses(f_score, locs, gclasses, glocal, gscores)
 
