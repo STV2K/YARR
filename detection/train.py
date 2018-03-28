@@ -55,12 +55,17 @@ def main():
     gc, gl, gs = STVNet.tf_ssd_bboxes_encode(label, bboxes, anchors)
 
     # loss = STVNet.ssd_losses(logits, localisations, gc, gl, gs) 
+    optimizer = tf.train.GardientDescentOptimizer(config.FLAGS.learning_rate)
+    global_step = tf.Variable(0, name='global_step', trainable=False)
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(coord=coord)
+
+        summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs', sess.graph)
+        merged = tf.summary.merge_all()
 
         b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
             sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
@@ -71,27 +76,18 @@ def main():
         for i in range(10):
             pres, locs, f_score, f_geo = sess.run([predictions, localisations, logits, end_points], feed_dict={inputs: [b_image[i]]})
 
-            # print('block 1 shape: ',  f_geo['resnet_v1_50/block1'].shape)
-            # print('block 4 shape: ',  f_geo['block4'].shape)
-
             labels = [1 for i in range(b_bbox_num[i][0])]
             gclasses, glocal, gscores = sess.run([gc, gl, gs], feed_dict={label: labels, bboxes: b_bboxes[i]})
 
-            # print(len(glocal[4]), len(glocal[4][0]), len(glocal[4][0][0]), len(glocal[4][0][0][0]))
+            loss = STVNet.ssd_losses(f_score, locs, gclasses, glocal, gscores, loss_list)
 
-            loss_list = STVNet.ssd_losses(f_score, locs, gclasses, glocal, gscores, loss_list)
+            tf.summary.scalar('loss: ', loss)
+            train_op = optimizer.minimize(loss, global_step)
+            _, loc_loss = sess.run([train_op, loss])
+            print('step: ', i, ', loss: ', loc_loss)
 
-        tf.summary.histogram('histogram', loss_list)
-        for i in range(len(loss_list)):
-            tf.summary.scalar('losses', loss_list[i])
-        # for ls in tf.get_collection(tf.GraphKeys.LOSSES):
-        #     tf.summary.scalar(ls.op.name, ls)
-                
-        merged = tf.summary.merge_all()
-        summary_str = sess.run(merged)
-
-        summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs', sess.graph)
-        summary_writer.add_summary(summary_str)
+            summary_str = sess.run(merged)
+            summary_writer.add_summary(summary_str, i)
 
         coord.request_stop()
         coord.join(threads)

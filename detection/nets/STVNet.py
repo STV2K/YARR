@@ -509,6 +509,8 @@ def ssd_losses(logits, localisations,
             loss = tf.div(tf.reduce_sum(loss * fpmask), batch_size, name='value')
             tf.losses.add_loss(loss)
 
+            return_loss = loss
+
         with tf.name_scope('cross_entropy_neg'):
             loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
                                                                   labels=no_classes)
@@ -524,5 +526,4 @@ def ssd_losses(logits, localisations,
             tf.losses.add_loss(loss)
         
         # add return to run
-        loss_list.append(loss)
-        return loss_list
+        return return_loss
