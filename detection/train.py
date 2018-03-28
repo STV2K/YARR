@@ -66,6 +66,7 @@ def main():
             sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
 
         b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
+        loss_list = []
 
         for i in range(10):
             pres, locs, f_score, f_geo = sess.run([predictions, localisations, logits, end_points], feed_dict={inputs: [b_image[i]]})
@@ -78,11 +79,13 @@ def main():
 
             # print(len(glocal[4]), len(glocal[4][0]), len(glocal[4][0][0]), len(glocal[4][0][0][0]))
 
-            loss = STVNet.ssd_losses(f_score, locs, gclasses, glocal, gscores)
-            print('loss.eval: ', loss.eval())
+            loss_list = STVNet.ssd_losses(f_score, locs, gclasses, glocal, gscores, loss_list)
 
-        for ls in tf.get_collection(tf.GraphKeys.LOSSES):
-            tf.summary.scalar(ls.op.name, ls)
+        tf.summary.histogram('histogram', loss_list)
+        for i in range(len(loss_list)):
+            tf.summary.scalar('losses', loss_list[i])
+        # for ls in tf.get_collection(tf.GraphKeys.LOSSES):
+        #     tf.summary.scalar(ls.op.name, ls)
                 
         merged = tf.summary.merge_all()
         summary_str = sess.run(merged)

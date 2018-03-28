@@ -442,6 +442,7 @@ def tf_ssd_bboxes_encode_layer(labels,
 
 def ssd_losses(logits, localisations,
            gclasses, glocalisations, gscores,
+           loss_list,
            match_threshold=0.5,
            negative_ratio=3.,
            alpha=1.,
@@ -523,4 +524,5 @@ def ssd_losses(logits, localisations,
             tf.losses.add_loss(loss)
         
         # add return to run
-        return loss
+        loss_list.append(loss)
+        return loss_list
