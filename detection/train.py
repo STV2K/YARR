@@ -54,6 +54,8 @@ def main():
     bboxes = tf.placeholder(tf.float32, shape=[None, 4], name='bboxes')
     gc, gl, gs = STVNet.tf_ssd_bboxes_encode(label, bboxes, anchors)
 
+    loss = STVNet.ssd_losses(logits, localisations, gc, gl, gs)
+
     # loss = STVNet.ssd_losses(logits, localisations, gc, gl, gs) 
     optimizer = tf.train.GardientDescentOptimizer(config.FLAGS.learning_rate)
     global_step = tf.Variable(0, name='global_step', trainable=False)
@@ -71,15 +73,14 @@ def main():
             sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
 
         b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
-        loss_list = []
 
         for i in range(10):
-            pres, locs, f_score, f_geo = sess.run([predictions, localisations, logits, end_points], feed_dict={inputs: [b_image[i]]})
-
+            # pres, locs, f_score, f_geo = sess.run([predictions, localisations, logits, end_points], feed_dict={inputs: [b_image[i]]})
             labels = [1 for i in range(b_bbox_num[i][0])]
-            gclasses, glocal, gscores = sess.run([gc, gl, gs], feed_dict={label: labels, bboxes: b_bboxes[i]})
+            # gclasses, glocal, gscores = sess.run([gc, gl, gs], feed_dict={label: labels, bboxes: b_bboxes[i]})
+            # loss = STVNet.ssd_losses(f_score, locs, gclasses, glocal, gscores)
 
-            loss = STVNet.ssd_losses(f_score, locs, gclasses, glocal, gscores, loss_list)
+            sess.run(loss, feed_dict={inputs: b_images[i], label: labels, bboxes: b_bboxes[i]})
 
             tf.summary.scalar('loss: ', loss)
             train_op = optimizer.minimize(loss, global_step)
