@@ -60,6 +60,8 @@ def main():
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
     train_op = optimizer.minimize(loss, global_step=global_step)
+    tf.summary.scalar("loss", loss)
+    merged = tf.summary.merge_all()
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
@@ -68,7 +70,6 @@ def main():
         threads = tf.train.start_queue_runners(coord=coord)
 
         summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs', sess.graph)
-        # merged = tf.summary.merge_all()
 
         b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
             sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
@@ -84,12 +85,10 @@ def main():
             # loc_loss = sess.run(loss, feed_dict={inputs: [b_image[i]], label: labels, bboxes: b_bboxes[i]})
 
             labels = [1 for i in range(b_bbox_num[i][0])]
-            _, loc_loss = sess.run([train_op, loss], feed_dict={inputs: [b_image[i]], label: labels, bboxes: b_bboxes[i]})
-            tf.summary.scalar('loss', loc_loss)
+            _, loc_loss, summary_str = sess.run([train_op, loss, merged], feed_dict={inputs: [b_image[i]], label: labels, bboxes: b_bboxes[i]})
             print('step: ', i, ', loss: ', loc_loss)
 
-            merged = tf.summary.merge_all()
-            summary_str = sess.run(merged)
+            # summary_str = sess.run(merged, feed_dict={loss:loc_loss})
             summary_writer.add_summary(summary_str, i)
             summary_writer.flush()
 
