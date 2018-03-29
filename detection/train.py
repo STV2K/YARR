@@ -56,11 +56,10 @@ def main():
 
     loss = STVNet.ssd_losses(logits, localisations, gc, gl, gs)
 
-    # loss = STVNet.ssd_losses(logits, localisations, gc, gl, gs) 
     optimizer = tf.train.GradientDescentOptimizer(config.FLAGS.learning_rate)
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
-    train_op = optimizer.minimize(loss, global_step)
+    train_op = optimizer.minimize(loss, global_step=global_step)
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
@@ -78,13 +77,13 @@ def main():
 
         for i in range(10):
             # pres, locs, f_score, f_geo = sess.run([predictions, localisations, logits, end_points], feed_dict={inputs: [b_image[i]]})
-            labels = [1 for i in range(b_bbox_num[i][0])]
+            
             # gclasses, glocal, gscores = sess.run([gc, gl, gs], feed_dict={label: labels, bboxes: b_bboxes[i]})
             # loss = STVNet.ssd_losses(f_score, locs, gclasses, glocal, gscores)
 
             # loc_loss = sess.run(loss, feed_dict={inputs: [b_image[i]], label: labels, bboxes: b_bboxes[i]})
 
-            # tf.summary.scalar('loss: ', loss)
+            labels = [1 for i in range(b_bbox_num[i][0])]
             _, loc_loss = sess.run([train_op, loss], feed_dict={inputs: [b_image[i]], label: labels, bboxes: b_bboxes[i]})
             tf.summary.scalar('loss', loc_loss)
             print('step: ', i, ', loss: ', loc_loss)
@@ -92,6 +91,7 @@ def main():
             merged = tf.summary.merge_all()
             summary_str = sess.run(merged)
             summary_writer.add_summary(summary_str, i)
+            summary_writer.flush()
 
         coord.request_stop()
         coord.join(threads)
