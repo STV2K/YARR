@@ -45,16 +45,16 @@ def generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox
 def main():
 
     image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num = data_utils.read_and_decode()
-    
-    inputs = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='inputs')
-    predictions, localisations, logits, end_points = STVNet.model(inputs)
 
-    anchors = STVNet.ssd_anchors_all_layers()
     label = tf.placeholder(tf.int64, shape=[None], name='labels')
     bboxes = tf.placeholder(tf.float32, shape=[None, 4], name='bboxes')
-    gc, gl, gs = STVNet.tf_ssd_bboxes_encode(label, bboxes, anchors)
+    inputs = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='inputs')
 
-    loss = STVNet.ssd_losses(logits, localisations, gc, gl, gs)
+    anchors = STVNet.ssd_anchors_all_layers()
+    predictions, localisations, logits, end_points = STVNet.model(inputs)
+    gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_encode(label, bboxes, anchors)
+
+    loss = STVNet.ssd_losses(logits, localisations, gclasses, glocal, gscores)
 
     optimizer = tf.train.GradientDescentOptimizer(config.FLAGS.learning_rate)
     global_step = tf.Variable(0, name='global_step', trainable=False)
@@ -71,26 +71,21 @@ def main():
 
         summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs', sess.graph)
 
-        b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
-            sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
+        for step in range(1):
 
-        b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
+            b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
+                sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
 
-        for i in range(10):
-            # pres, locs, f_score, f_geo = sess.run([predictions, localisations, logits, end_points], feed_dict={inputs: [b_image[i]]})
-            
-            # gclasses, glocal, gscores = sess.run([gc, gl, gs], feed_dict={label: labels, bboxes: b_bboxes[i]})
-            # loss = STVNet.ssd_losses(f_score, locs, gclasses, glocal, gscores)
+            b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
 
-            # loc_loss = sess.run(loss, feed_dict={inputs: [b_image[i]], label: labels, bboxes: b_bboxes[i]})
+            for i in range(10):
+                labels = [1 for i in range(b_bbox_num[i][0])]
+                
+                _, loc_loss, summary_str = sess.run([train_op, loss, merged], feed_dict={inputs: [b_image[i]], label: labels, bboxes: b_bboxes[i]})
+                print('step: ', i, ', loss: ', loc_loss)
 
-            labels = [1 for i in range(b_bbox_num[i][0])]
-            _, loc_loss, summary_str = sess.run([train_op, loss, merged], feed_dict={inputs: [b_image[i]], label: labels, bboxes: b_bboxes[i]})
-            print('step: ', i, ', loss: ', loc_loss)
-
-            # summary_str = sess.run(merged, feed_dict={loss:loc_loss})
-            summary_writer.add_summary(summary_str, i)
-            summary_writer.flush()
+                summary_writer.add_summary(summary_str, global_step)
+                summary_writer.flush()
 
         coord.request_stop()
         coord.join(threads)
