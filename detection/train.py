@@ -4,11 +4,21 @@ import tensorflow as tf
 import config_utils as config
 import data_utils as data_utils
 
+from tensorflow.python import pywrap_tensorflow
 from nets import STVNet
 
 slim = tf.contrib.slim
 os.environ["CUDA_VISIBLE_DEVICES"] = "0" # config.FLAGS.gpu_list
+model_dir='/home/hcxiao/Codes/YARR/detection/models/'
+model_name='VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt.data-00000-of-00001'
 
+def test_model():
+    ckpt_path = os.path.join(model_dir, model_name)
+    reader = pywrap_tensorflow.NewCheckpointReader(ckpt_path)
+    var_map = reader.get_variable_to_shape_map()
+    for key in var_map:
+        print('tensor_name: ', key)
+        print(reader.get_tensor(key))
 
 def turn_into_bbox(x1, x2, x3, x4, y1, y2, y3, y4, num):
     bboxes = []
@@ -42,7 +52,7 @@ def generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox
 
 
 
-def main():
+def train():
 
     with tf.Graph().as_default():
         image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num = data_utils.read_and_decode()
@@ -77,7 +87,7 @@ def main():
             summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
             batch_size = config.FLAGS.batch_size
 
-            for step in range(5):
+            for step in range(1):
 
                 b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
                     sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
@@ -100,4 +110,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    # train()
+    test_model()
