@@ -30,7 +30,7 @@ default_params = STVParams(
       img_shape=(300, 300),
       num_classes=2,
       no_annotation_label=21,
-      feat_layers=['resnet_v1_50/block2', 'block5', 'block6', 'block7', 'block8', 'block9'],
+      feat_layers=['resnet_v1_50/block1', 'block5', 'block6', 'block7', 'block8', 'block9'],
       feat_shapes=[(38, 38), (19, 19), (10, 10), (5, 5), (3, 3), (1, 1)],
       anchor_size_bounds=[0.15, 0.90],
       # anchor_size_bounds=[0.20, 0.90],
@@ -86,6 +86,7 @@ def model(images,
         net, end_points = resnet_v1.resnet_v1_50(images,
                               is_training=is_training,
                               scope='resnet_v1_50')
+
 
         # TODO: add layer
         arg_scope = stv_arg_scope(weight_decay=0.00004)
@@ -508,13 +509,15 @@ def ssd_losses(logits, localisations,
             loss = tf.div(tf.reduce_sum(loss * fpmask), batch_size, name='value')
             tf.losses.add_loss(loss)
 
-            return_loss = loss
+            pos_loss = loss
 
         with tf.name_scope('cross_entropy_neg'):
             loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
                                                                   labels=no_classes)
             loss = tf.div(tf.reduce_sum(loss * fnmask), batch_size, name='value')
             tf.losses.add_loss(loss)
+
+            neg_loss = loss
 
         # Add localization loss: smooth L1, L2, ...
         with tf.name_scope('localization'):
@@ -523,6 +526,8 @@ def ssd_losses(logits, localisations,
             loss = custom_layers.abs_smooth(localisations - glocalisations)
             loss = tf.div(tf.reduce_sum(loss * weights), batch_size, name='value')
             tf.losses.add_loss(loss)
+
+            loc_loss = loss
         
         # add return to run
-        return return_loss
+        return pos_loss, neg_loss, loc_loss
