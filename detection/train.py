@@ -44,9 +44,9 @@ def generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox
 
 def main():
 
-    image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num = data_utils.read_and_decode()
-
     with tf.Graph().as_default():
+        image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num = data_utils.read_and_decode()
+
         label = tf.placeholder(tf.int64, shape=[None], name='labels')
         bboxes = tf.placeholder(tf.float32, shape=[None, 4], name='bboxes')
         inputs = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='inputs')

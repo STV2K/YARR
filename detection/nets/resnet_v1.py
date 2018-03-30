@@ -52,13 +52,13 @@ def resnet_v1(inputs, blocks,
                 net = resnet_utils.stack_blocks_dense(net, blocks, output_stride=output_stride)
                 end_points = slim.utils.convert_collection_to_dict(end_points_collection)
 
-                try:
-                    end_points['pool3'] = end_points['resnet_v1_50/block1']
-                    end_points['pool4'] = end_points['resnet_v1_50/block2']
-                except:
-                    end_points['pool3'] = end_points['Detection/resnet_v1_50/block1']
-                    end_points['pool4'] = end_points['Detection/resnet_v1_50/block2']
-                end_points['pool5'] = net
+                # try:
+                #     end_points['pool3'] = end_points['resnet_v1_50/block1']
+                #     end_points['pool4'] = end_points['resnet_v1_50/block2']
+                # except:
+                #     end_points['pool3'] = end_points['Detection/resnet_v1_50/block1']
+                #     end_points['pool4'] = end_points['Detection/resnet_v1_50/block2']
+                # end_points['pool5'] = net
 
                 return net, end_points
 
