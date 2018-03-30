@@ -10,15 +10,17 @@ from nets import STVNet
 slim = tf.contrib.slim
 os.environ["CUDA_VISIBLE_DEVICES"] = "0" # config.FLAGS.gpu_list
 model_dir='/home/hcxiao/Codes/YARR/detection/models/'
-model_name='VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt.data-00000-of-00001'
+save_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
+model_name='VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt' # .data-00000-of-00001'
 
-def test_model():
+def get_ssd_model_data():
     ckpt_path = os.path.join(model_dir, model_name)
     reader = pywrap_tensorflow.NewCheckpointReader(ckpt_path)
     var_map = reader.get_variable_to_shape_map()
     for key in var_map:
         print('tensor_name: ', key)
-        print(reader.get_tensor(key))
+        # print(reader.get_tensor(key))
+    return var_map
 
 def turn_into_bbox(x1, x2, x3, x4, y1, y2, y3, y4, num):
     bboxes = []
@@ -78,6 +80,8 @@ def train():
         tf.summary.scalar("total_loss", total_loss)
         merged = tf.summary.merge_all()
 
+        #TODO
+        saver = tf.train.Saver()
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             sess.run(tf.local_variables_initializer())
@@ -87,7 +91,7 @@ def train():
             summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
             batch_size = config.FLAGS.batch_size
 
-            for step in range(1):
+            for step in range(3):
 
                 b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
                     sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
@@ -104,6 +108,7 @@ def train():
                     summary_writer.add_summary(summary_str, step * batch_size + i)
                     summary_writer.flush()
             
+            saver.save(sess, save_dir + 'stvnet.ckpt')
 
             coord.request_stop()
             coord.join(threads)
@@ -111,4 +116,4 @@ def train():
 
 if __name__ == '__main__':
     # train()
-    test_model()
+    get_ssd_model_data()
