@@ -13,8 +13,8 @@ model_dir='/home/hcxiao/Codes/YARR/detection/models/'
 save_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 model_name='VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt' # .data-00000-of-00001'
 
-def get_ssd_model_data():
-    ckpt_path = os.path.join(model_dir, model_name)
+def get_model_data(model):
+    ckpt_path = os.path.join(model_dir, model)
     reader = pywrap_tensorflow.NewCheckpointReader(ckpt_path)
     var_map = reader.get_variable_to_shape_map()
     for key in var_map:
@@ -81,7 +81,8 @@ def train():
         merged = tf.summary.merge_all()
 
         #TODO
-        saver = tf.train.Saver()
+        var_list = change_paras()
+        saver = tf.train.Saver(var_list)
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             sess.run(tf.local_variables_initializer())
@@ -108,12 +109,30 @@ def train():
                     summary_writer.add_summary(summary_str, step * batch_size + i)
                     summary_writer.flush()
             
-            saver.save(sess, save_dir + 'stvnet.ckpt')
+            saver.save(sess, save_dir + 'stvnet-new.ckpt')
 
             coord.request_stop()
             coord.join(threads)
 
 
+def change_paras():
+    var_ssd = get_model_data(model_name)
+    var_stv = get_model_data('stvnet/stvnet.ckpt')
+
+    i = 6
+    while i < 10:
+        b = i + 2
+        var_stv['stvnet/block%i_box/conv_loc/weights' % i] = var_ssd['ssd_300_vgg/block%i_box/conv_loc/weights' % b]
+        var_stv['stvnet/block%i_box/conv_cls/weights' % i] = var_ssd['ssd_300_vgg/block%i_box/conv_cls/weights' % b]
+        var_stv['stvnet/block%i/conv1x1/weights' % i] = var_ssd['ssd_300_vgg/block%i/conv1x1/biases' % b]
+        var_stv['stvnet/block%i/conv3x3/weights' % i] = var_ssd['ssd_300_vgg/block%i/conv3x3/biases' % b]
+
+    var_stv['stvnet/conv6/weights'] = var_ssd['ssd_300_vgg/conv6/weights']
+    var_stv['stvnet/conv7/weights'] = var_ssd['ssd_300_vgg/conv7/weights']
+
+    return var_stv
+
+
 if __name__ == '__main__':
     # train()
-    get_ssd_model_data()
+    get_model_data()
