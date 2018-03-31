@@ -174,8 +174,8 @@ def read_and_decode():
                                                      '/media/data2/hcx_data/STV2KTF/STV2K_0003.tfrecord',
                                                      '/media/data2/hcx_data/STV2KTF/STV2K_0004.tfrecord',
                                                      '/media/data2/hcx_data/STV2KTF/STV2K_0005.tfrecord',
-                                                     '/media/data2/hcx_data/STV2KTF/STV2K_0006.tfrecord'],
-                                                    num_epochs=10)
+                                                     '/media/data2/hcx_data/STV2KTF/STV2K_0006.tfrecord'])
+                                                     # num_epochs=10)
 
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)

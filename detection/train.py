@@ -10,7 +10,7 @@ from nets import STVNet
 
 tf.logging.set_verbosity(tf.logging.INFO)
 slim = tf.contrib.slim
-os.environ["CUDA_VISIBLE_DEVICES"] = "2" # config.FLAGS.gpu_list
+os.environ["CUDA_VISIBLE_DEVICES"] = "0" # config.FLAGS.gpu_list
 model_dir='/home/hcxiao/Codes/YARR/detection/models/'
 save_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 model_name='VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt' # .data-00000-of-00001'
@@ -102,7 +102,7 @@ def train():
             summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
             batch_size = config.FLAGS.batch_size
 
-            step = 751
+            step = 1501
             while(True):
 
                 b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
@@ -126,11 +126,12 @@ def train():
                         sum_nloss += nloss
                         sum_lcloss += lcloss
 
-                    summary_writer.add_summary(summary_str, step * batch_size + i)
-                    summary_writer.flush()
+                        summary_writer.add_summary(summary_str, step * batch_size + i)
+                        summary_writer.flush()
 
                 print()
-                tf.logging.info('%s: Step %d: CrossEntropyLoss = %.2f' % (datetime.now(), step, sum_ploss / flag))
+                tf.logging.info('%s: Step %d: PositiveLoss = %.2f' % (datetime.now(), step, sum_ploss / flag))
+                tf.logging.info('%s: Step %d: NegtiveLoss = %.2f' % (datetime.now(), step, sum_nloss / flag))
                 tf.logging.info('%s: Step %d: LocalizationLoss = %.2f' % (datetime.now(), step, sum_lcloss / flag))
 
                 if step % 50 == 0:
