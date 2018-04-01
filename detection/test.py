@@ -1,4 +1,5 @@
 import os
+import cv2
 import numpy as np
 import tensorflow as tf
 import config_utils as config
@@ -6,6 +7,8 @@ import data_utils as data_utils
 import tf_extended as tfe
 
 from nets import STVNet
+from PIL import Image
+import matplotlib.pyplot as plt
 
 os.environ["CUDA_VISIBLE_PATH"] = "0"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/'
@@ -60,7 +63,7 @@ def test(img_name):
         gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_encode(label, bboxes, anchors)
         pos_loss, neg_loss, loc_loss = STVNet.ssd_losses(logits, localisations, gclasses, glocal, gscores)
 
-        pre_locals = STVNet.tf_ssd_bboxes_encode(localisations, anchors, scope='bboxes_decode')
+        pre_locals = STVNet.tf_ssd_bboxes_decode(localisations, anchors, scope='bboxes_decode')
         pre_scores, pre_bboxes = STVNet.detected_bboxes(predictions, pre_locals,
                                                         select_threshold=config.FLAGS.select_threshold,
                                                         nms_threshold=config.FLAGS.nms_threshold,
@@ -68,52 +71,70 @@ def test(img_name):
                                                         top_k=config.FLAGS.select_top_k,
                                                         keep_top_k=config.FLAGS.keep_top_k)
 
-        num_gbboxes, tp, fp, rscores = \
-                tfe.bboxes_matching_batch(rscores.keys(), pre_scores, pre_bboxes,
-                                          label, bboxes, b_gdifficults,
-                                          matching_threshold=config.FLAGS.matching_threshold)
+        # num_gbboxes, tp, fp, pre_scores = \
+        #         tfe.bboxes_matching_batch(pre_scores.keys(), pre_scores, pre_bboxes,
+        #                                   label, bboxes, b_gdifficults,
+        #                                   matching_threshold=config.FLAGS.matching_threshold)
 
-    saver = tf.train.Saver()
-    with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
-        sess.run(tf.local_variables_initializer())
+        saver = tf.train.Saver()
+        gpu_fraction = 0.2
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=gpu_fraction)
+        with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
+            sess.run(tf.global_variables_initializer())
+            sess.run(tf.local_variables_initializer())
         
-        saver.restore(sess, model_dir + 'stvnet.ckpt')
+            saver.restore(sess, model_dir + 'stvnet.ckpt')
 
-        gt_bboxes = convert_poly_to_bbox(polys)
-        gt_labels = [1 for i in range(len(gt_bboxes))]
+            gt_bboxes = convert_poly_to_bbox(polys)
+            gt_labels = [1 for i in range(len(gt_bboxes))]
 
-        pre_s, pre_box, p_loss, n_loss, lc_loss = sess.run([pre_scores, pre_bboxes, pos_loss, neg_loss, loc_loss],
-                                                              feed_dict={inputs=[im],
-                                                                         label=gt_labels,
-                                                                         bboxes=gt_bboxes})
-        # img = np.copy(im)
-        # bboxes_draw_on_img(img, pre_c, pre_s, pre_box, [(255, 255, 255), (31, 119, 180)])
-        # fig = plt.figure(figsize=(12, 12))
-        # plt.imshow(img)
-        print('pre-score: ', pre_s)
-        print('pre-boxes: ', pre_box)
-        print('postive loss: ', p_loss)
-        print('negtive loss: ', n_loss)
-        print('localisation loss: ', lc_loss)
+            pre_s, pre_box, p_loss, n_loss, lc_loss = sess.run([pre_scores, pre_bboxes, pos_loss, neg_loss, loc_loss],
+                                                               feed_dict={inputs: [im],
+                                                                          label: gt_labels,
+                                                                          bboxes: gt_bboxes})
+            img = Image.open(STV2K_Path + img_name)
+            img = np.array(img)
+
+            # img = np.copy(im)
+            # print('pre-box[1][0]: ', pre_box[1][0])
+            bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], [(255, 255, 255), (31, 119, 180)])
+            # fig = plt.figure(figsize=(12, 12))
+            # plt.imshow(img)
+            result_img = Image.fromarray(np.uint8(img))
+            result_img.save('result.jpg')
+            # print('pre-score: ', pre_s[1])
+            print('pre-boxes: ', pre_box[1][0])
+            # print('postive loss: ', p_loss)
+            # print('negtive loss: ', n_loss)
+            # print('localisation loss: ', lc_loss)
 
         
-def bboxes_draw_on_img(img, classes, scores, bboxes, colors, thickness=2):
+def bboxes_draw_on_img(img, scores, bboxes, colors, thickness=3):
     shape = img.shape
-    for i in range(bboxes.shape[0]):
+    for i in range(len(bboxes)):
+        if scores[i] < 0.97:
+            continue
         bbox = bboxes[i]
-        color = colors[classes[i]]
+        color = colors[0]
         # Draw bounding box...
+        if bbox[0] < 0:
+            bbox[0] = 0
+        if bbox[1] < 0:
+            bbox[1] = 0
+        if bbox[2] > 1:
+            bbox[2] = 1
+        if bbox[3] > 1:
+            bbox[3] = 1
         p1 = (int(bbox[0] * shape[0]), int(bbox[1] * shape[1]))
         p2 = (int(bbox[2] * shape[0]), int(bbox[3] * shape[1]))
         cv2.rectangle(img, p1[::-1], p2[::-1], color, thickness)
         # Draw text...
-        s = '%s/%.3f' % (classes[i], scores[i])
+        s = '%.3f' % scores[i]
         p1 = (p1[0]-5, p1[1])
-        cv2.putText(img, s, p1[::-1], cv2.FONT_HERSHEY_DUPLEX, 0.4, color, 1)
+        cv2.putText(img, s, p1[::-1], cv2.FONT_HERSHEY_DUPLEX, 0.4, color, 3)
 
 
 if __name__ == '__main__':
-    test()
+    test(img_name)
     
 
