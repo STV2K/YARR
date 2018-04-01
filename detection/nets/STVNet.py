@@ -268,6 +268,165 @@ def ssd_anchor_one_layer(img_shape,
     return y, x, h, w
 
 
+def detected_bboxes(predictions, localisations,
+                    select_threshold=None, nms_threshold=0.5,
+                    clipping_bbox=None, top_k=400, keep_top_k=200):
+    """Get the detected bounding boxes from the SSD network output.
+    """
+    # Select top_k bboxes from predictions, and clip
+    rscores, rbboxes = \
+        tf_ssd_bboxes_select(predictions, localisations,
+                             select_threshold=select_threshold,
+                             num_classes=default_params.num_classes)
+    rscores, rbboxes = \
+        tfe.bboxes_sort(rscores, rbboxes, top_k=top_k)
+    # Apply NMS algorithm.
+    rscores, rbboxes = \
+        tfe.bboxes_nms_batch(rscores, rbboxes,
+                             nms_threshold=nms_threshold,
+                             keep_top_k=keep_top_k)
+    if clipping_bbox is not None:
+        rbboxes = tfe.bboxes_clip(clipping_bbox, rbboxes)
+    return rscores, rbboxes
+
+
+def tf_ssd_bboxes_select_layer(predictions_layer, localizations_layer,
+                               select_threshold=None,
+                               num_classes=21,
+                               ignore_class=0,
+                               scope=None):
+    """Extract classes, scores and bounding boxes from features in one layer.
+    Batch-compatible: inputs are supposed to have batch-type shapes.
+
+    Args:
+      predictions_layer: A SSD prediction layer;
+      localizations_layer: A SSD localization layer;
+      select_threshold: Classification threshold for selecting a box. All boxes
+        under the threshold are set to 'zero'. If None, no threshold applied.
+    Return:
+      d_scores, d_bboxes: Dictionary of scores and bboxes Tensors of
+        size Batches X N x 1 | 4. Each key corresponding to a class.
+    """
+    select_threshold = 0.0 if select_threshold is None else select_threshold
+    with tf.name_scope(scope, 'ssd_bboxes_select_layer',
+                       [predictions_layer, localizations_layer]):
+        # Reshape features: Batches x N x N_labels | 4
+        p_shape = tfe.get_shape(predictions_layer)
+        predictions_layer = tf.reshape(predictions_layer,
+                                       tf.stack([p_shape[0], -1, p_shape[-1]]))
+        l_shape = tfe.get_shape(localizations_layer)
+        localizations_layer = tf.reshape(localizations_layer,
+                                         tf.stack([l_shape[0], -1, l_shape[-1]]))
+
+        d_scores = {}
+        d_bboxes = {}
+        for c in range(0, num_classes):
+            if c != ignore_class:
+                # Remove boxes under the threshold.
+                scores = predictions_layer[:, :, c]
+                fmask = tf.cast(tf.greater_equal(scores, select_threshold), scores.dtype)
+                scores = scores * fmask
+                bboxes = localizations_layer * tf.expand_dims(fmask, axis=-1)
+                # Append to dictionary.
+                d_scores[c] = scores
+                d_bboxes[c] = bboxes
+
+        return d_scores, d_bboxes
+
+
+def tf_ssd_bboxes_select(predictions_net, localizations_net,
+                         select_threshold=None,
+                         num_classes=21,
+                         ignore_class=0,
+                         scope=None):
+    """Extract classes, scores and bounding boxes from network output layers.
+    Batch-compatible: inputs are supposed to have batch-type shapes.
+
+    Args:
+      predictions_net: List of SSD prediction layers;
+      localizations_net: List of localization layers;
+      select_threshold: Classification threshold for selecting a box. All boxes
+        under the threshold are set to 'zero'. If None, no threshold applied.
+    Return:
+      d_scores, d_bboxes: Dictionary of scores and bboxes Tensors of
+        size Batches X N x 1 | 4. Each key corresponding to a class.
+    """
+    with tf.name_scope(scope, 'ssd_bboxes_select',
+                       [predictions_net, localizations_net]):
+        l_scores = []
+        l_bboxes = []
+        for i in range(len(predictions_net)):
+            scores, bboxes = tf_ssd_bboxes_select_layer(predictions_net[i],
+                                                        localizations_net[i],
+                                                        select_threshold,
+                                                        num_classes,
+                                                        ignore_class)
+            l_scores.append(scores)
+            l_bboxes.append(bboxes)
+        # Concat results.
+        d_scores = {}
+        d_bboxes = {}
+        for c in l_scores[0].keys():
+            ls = [s[c] for s in l_scores]
+            lb = [b[c] for b in l_bboxes]
+            d_scores[c] = tf.concat(ls, axis=1)
+            d_bboxes[c] = tf.concat(lb, axis=1)
+        return d_scores, d_bboxes
+
+
+def tf_ssd_bboxes_decode_layer(feat_localizations,
+                               anchors_layer,
+                               prior_scaling=[0.1, 0.1, 0.2, 0.2]):
+    """Compute the relative bounding boxes from the layer features and
+    reference anchor bounding boxes.
+
+    Arguments:
+      feat_localizations: Tensor containing localization features.
+      anchors: List of numpy array containing anchor boxes.
+
+    Return:
+      Tensor Nx4: ymin, xmin, ymax, xmax
+    """
+    yref, xref, href, wref = anchors_layer
+
+    # Compute center, height and width
+    cx = feat_localizations[:, :, :, :, 0] * wref * prior_scaling[0] + xref
+    cy = feat_localizations[:, :, :, :, 1] * href * prior_scaling[1] + yref
+    w = wref * tf.exp(feat_localizations[:, :, :, :, 2] * prior_scaling[2])
+    h = href * tf.exp(feat_localizations[:, :, :, :, 3] * prior_scaling[3])
+    # Boxes coordinates.
+    ymin = cy - h / 2.
+    xmin = cx - w / 2.
+    ymax = cy + h / 2.
+    xmax = cx + w / 2.
+    bboxes = tf.stack([ymin, xmin, ymax, xmax], axis=-1)
+    return bboxes
+
+
+def tf_ssd_bboxes_decode(feat_localizations,
+                         anchors,
+                         prior_scaling=default_params.prior_scaling,
+                         scope='ssd_bboxes_decode'):
+    """Compute the relative bounding boxes from the SSD net features and
+    reference anchors bounding boxes.
+
+    Arguments:
+      feat_localizations: List of Tensors containing localization features.
+      anchors: List of numpy array containing anchor boxes.
+
+    Return:
+      List of Tensors Nx4: ymin, xmin, ymax, xmax
+    """
+    with tf.name_scope(scope):
+        bboxes = []
+        for i, anchors_layer in enumerate(anchors):
+            bboxes.append(
+                tf_ssd_bboxes_decode_layer(feat_localizations[i],
+                                           anchors_layer,
+                                           prior_scaling))
+        return bboxes
+
+
 # encode gt
 def tf_ssd_bboxes_encode(labels,
                          bboxes,
