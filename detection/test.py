@@ -10,10 +10,10 @@ from nets import STVNet
 from PIL import Image
 import matplotlib.pyplot as plt
 
-os.environ["CUDA_VISIBLE_PATH"] = "0"
-model_dir='/home/hcxiao/Codes/YARR/detection/models/'
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_train/'
-img_name = 'STV2K_tr_0001.jpg'
+img_name = 'STV2K_tr_0017.jpg'
 default_size = STVNet.default_params.img_shape
 input_size = default_size
 # gpu_list = config.FLAGS.gpu_list.split(',')
@@ -63,6 +63,7 @@ def test(img_name):
         gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_encode(label, bboxes, anchors)
         pos_loss, neg_loss, loc_loss = STVNet.ssd_losses(logits, localisations, gclasses, glocal, gscores)
 
+        # with tf.device('/device:CPU:0'):
         pre_locals = STVNet.tf_ssd_bboxes_decode(localisations, anchors, scope='bboxes_decode')
         pre_scores, pre_bboxes = STVNet.detected_bboxes(predictions, pre_locals,
                                                         select_threshold=config.FLAGS.select_threshold,
@@ -71,19 +72,14 @@ def test(img_name):
                                                         top_k=config.FLAGS.select_top_k,
                                                         keep_top_k=config.FLAGS.keep_top_k)
 
-        # num_gbboxes, tp, fp, pre_scores = \
-        #         tfe.bboxes_matching_batch(pre_scores.keys(), pre_scores, pre_bboxes,
-        #                                   label, bboxes, b_gdifficults,
-        #                                   matching_threshold=config.FLAGS.matching_threshold)
-
         saver = tf.train.Saver()
-        gpu_fraction = 0.2
-        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=gpu_fraction)
-        with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
+        # gpu_fraction = 0.5
+        # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=gpu_fraction, allow_growth=True)
+        with tf.Session() as sess: # config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
             sess.run(tf.global_variables_initializer())
             sess.run(tf.local_variables_initializer())
         
-            saver.restore(sess, model_dir + 'stvnet.ckpt')
+            saver.restore(sess, model_dir + 'stvnet.ckpt-18100')
 
             gt_bboxes = convert_poly_to_bbox(polys)
             gt_labels = [1 for i in range(len(gt_bboxes))]
@@ -96,26 +92,24 @@ def test(img_name):
             img = np.array(img)
 
             # img = np.copy(im)
-            # print('pre-box[1][0]: ', pre_box[1][0])
-            bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], [(255, 255, 255), (31, 119, 180)])
+            bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], (31, 119, 180))
             # fig = plt.figure(figsize=(12, 12))
             # plt.imshow(img)
             result_img = Image.fromarray(np.uint8(img))
-            result_img.save('result.jpg')
-            # print('pre-score: ', pre_s[1])
-            print('pre-boxes: ', pre_box[1][0])
-            # print('postive loss: ', p_loss)
-            # print('negtive loss: ', n_loss)
-            # print('localisation loss: ', lc_loss)
+            result_img.save('results/result' + img_name)
+            print('positive loss: ', p_loss)
+            print('negtive loss: ', n_loss)
+            print('localisation loss: ', lc_loss)
 
         
-def bboxes_draw_on_img(img, scores, bboxes, colors, thickness=3):
+def bboxes_draw_on_img(img, scores, bboxes, color, thickness=5):
     shape = img.shape
     for i in range(len(bboxes)):
-        if scores[i] < 0.97:
-            continue
+        if(scores[i] < 0.5):
+            color = (255, 255, 255)
+        else:
+            color = (31, 119, 180)
         bbox = bboxes[i]
-        color = colors[0]
         # Draw bounding box...
         if bbox[0] < 0:
             bbox[0] = 0
@@ -131,7 +125,7 @@ def bboxes_draw_on_img(img, scores, bboxes, colors, thickness=3):
         # Draw text...
         s = '%.3f' % scores[i]
         p1 = (p1[0]-5, p1[1])
-        cv2.putText(img, s, p1[::-1], cv2.FONT_HERSHEY_DUPLEX, 0.4, color, 3)
+        cv2.putText(img, s, p1[::-1], cv2.FONT_HERSHEY_SCRIPT_SIMPLEX, 2, color, 2)
 
 
 if __name__ == '__main__':
