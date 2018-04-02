@@ -12,11 +12,12 @@ tf.logging.set_verbosity(tf.logging.INFO)
 slim = tf.contrib.slim
 os.environ["CUDA_VISIBLE_DEVICES"] = "0" # config.FLAGS.gpu_list
 model_dir='/home/hcxiao/Codes/YARR/detection/models/'
-save_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
+save_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet2/'
 model_name='VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt' # .data-00000-of-00001'
 
 img_width = config.FLAGS.input_size_width
 img_height = config.FLAGS.input_size_height
+ckpt_path = config.FLAGS.ckpt_path
 
 def get_model_data(model):
     ckpt_path = os.path.join(model_dir, model)
@@ -69,7 +70,7 @@ def generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox
 def train():
 
     with tf.Graph().as_default():
-        STVNet.redefine_params(img_width, img_height)
+        # STVNet.redefine_params(img_width, img_height)
 
         image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num = data_utils.read_and_decode()
 
@@ -104,14 +105,16 @@ def train():
             sess.run(tf.global_variables_initializer())
             sess.run(tf.local_variables_initializer())
 
-            saver.restore(sess, save_dir + 'stvnet.ckpt')
+            if ckpt_path:
+                # saver.restore(sess, save_dir + 'stvnet.ckpt')
+                saver.restore(sess, ckpt_path)
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
 
             summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
             batch_size = config.FLAGS.batch_size
 
-            step = 1501
+            step = 1
             while(True):
 
                 b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
@@ -143,7 +146,7 @@ def train():
                 tf.logging.info('%s: Step %d: NegtiveLoss = %.2f' % (datetime.now(), step, sum_nloss / flag))
                 tf.logging.info('%s: Step %d: LocalizationLoss = %.2f' % (datetime.now(), step, sum_lcloss / flag))
 
-                if step % 50 == 0:
+                if step % 100 == 0:
                     saver.save(sess, save_dir + 'stvnet.ckpt', global_step=step)
                 step += 1
 
