@@ -15,6 +15,9 @@ model_dir='/home/hcxiao/Codes/YARR/detection/models/'
 save_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 model_name='VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt' # .data-00000-of-00001'
 
+img_width = config.FLAGS.input_size_width
+img_height = config.FLAGS.input_size_height
+
 def get_model_data(model):
     ckpt_path = os.path.join(model_dir, model)
     reader = pywrap_tensorflow.NewCheckpointReader(ckpt_path)
@@ -32,15 +35,19 @@ def turn_into_bbox(x1, x2, x3, x4, y1, y2, y3, y4, num):
     for i in range(num):
         x = [x1[i], x2[i], x3[i], x4[i]]
         y = [y1[i], y2[i], y3[i], y4[i]]
-        xmin = min(x) / 300.0
-        xmax = max(x) / 300.0
-        ymin = min(y) / 300.0
-        ymax = max(y) / 300.0
+        xmin = min(x) / img_width
+        xmax = max(x) / img_width
+        ymin = min(y) / img_height
+        ymax = max(y) / img_height
 
         if xmin < 0:
             xmin = 0
         if ymin < 0:
             ymin = 0
+        if xmax > 1:
+            xmax = 1
+        if ymax > 1:
+            ymax = 1
 
         bbox = [ymin, xmin, ymax, xmax]
         bboxes.append(bbox)
@@ -62,6 +69,8 @@ def generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox
 def train():
 
     with tf.Graph().as_default():
+        STVNet.redefine_params(img_width, img_height)
+
         image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num = data_utils.read_and_decode()
 
         label = tf.placeholder(tf.int64, shape=[None], name='labels')

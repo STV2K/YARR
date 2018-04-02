@@ -34,23 +34,39 @@ default_params = STVParams(
       feat_shapes=[(38, 38), (19, 19), (10, 10), (5, 5), (3, 3), (1, 1)],
       anchor_size_bounds=[0.15, 0.90],
       # anchor_size_bounds=[0.20, 0.90],
-      anchor_sizes=[(21., 45.),
-                    (45., 99.),
-                    (99., 153.),
-                    (153., 207.),
-                    (207., 261.),
-                    (261., 315.)],
-      anchor_ratios=[[2, .5],
-                     [2, .5, 3, 1./3],
-                     [2, .5, 3, 1./3],
-                     [2, .5, 3, 1./3],
-                     [2, .5],
-                     [2, .5]],
-      anchor_steps=[8, 16, 32, 64, 100, 300],
+      # anchor_sizes=[(21., 45.),
+      #               (45., 99.),
+      #               (99., 153.),
+      #               (153., 207.),
+      #               (207., 261.),
+      #               (261., 315.)],
+      anchor_sizes=[(0.07, 0.15),
+                    (0.15, 0.33),
+                    (0.33, 0.51),
+                    (0.51, 0.69),
+                    (0.69, 0.87),
+                    (0.87, 1.05)],
+      anchor_ratios=[[2, .5, 5],
+                     [2, .5, 3, 1./3, 5],
+                     [2, .5, 3, 1./3, 5],
+                     [2, .5, 3, 1./3, 5],
+                     [2, .5, 5],
+                     [2, .5, 5]],     # add long ratio boxes
+      anchor_steps=[8, 16, 32, 64, 128, 256],
       anchor_offset=0.5,
       normalizations=[20, -1, -1, -1, -1, -1],
       prior_scaling=[0.1, 0.1, 0.2, 0.2]
       )
+
+def redefine_params(img_width, img_height):
+    default_params.img_shape = (img_height, img_width)
+    default_params.feat_shapes = [(math.ceil(img_height / 8), math.ceil(img_width / 8)),
+                                  (math.ceil(img_height / 16), math.ceil(img_width / 16)),
+                                  (math.ceil(img_height / 32), math.ceil(img_width / 32)),
+                                  (math.ceil(img_height / 64), math.ceil(img_width / 64)),
+                                  (math.ceil(img_height / 128), math.ceil(img_width / 128)),
+                                  (math.ceil(img_height / 256), math.ceil(img_width / 256))]
+
 
 def stv_arg_scope(weight_decay=0.0005, data_format='NHWC'):
     """Defines the VGG arg scope.
@@ -255,16 +271,22 @@ def ssd_anchor_one_layer(img_shape,
     h = np.zeros((num_anchors, ), dtype=dtype)
     w = np.zeros((num_anchors, ), dtype=dtype)
     # Add first anchor boxes with ratio=1.
-    h[0] = sizes[0] / img_shape[0]
-    w[0] = sizes[0] / img_shape[1]
+    # h[0] = sizes[0] / img_shape[0]
+    # w[0] = sizes[0] / img_shape[1]
+    h[0] = sizes[0]
+    w[0] = sizes[0]
     di = 1
     if len(sizes) > 1:
-        h[1] = math.sqrt(sizes[0] * sizes[1]) / img_shape[0]
-        w[1] = math.sqrt(sizes[0] * sizes[1]) / img_shape[1]
+        # h[1] = math.sqrt(sizes[0] * sizes[1]) / img_shape[0]
+        # w[1] = math.sqrt(sizes[0] * sizes[1]) / img_shape[1]
+        h[1] = math.sqrt(sizes[0] * sizes[1])
+        w[1] = math.sqrt(sizes[0] * sizes[1])
         di += 1
     for i, r in enumerate(ratios):
-        h[i+di] = sizes[0] / img_shape[0] / math.sqrt(r)
-        w[i+di] = sizes[0] / img_shape[1] * math.sqrt(r)
+        # h[i+di] = sizes[0] / img_shape[0] / math.sqrt(r)
+        # w[i+di] = sizes[0] / img_shape[1] * math.sqrt(r)
+        h[i+di] = sizes[0] / math.sqrt(r)
+        w[i+di] = sizes[0] * math.sqrt(r)
     return y, x, h, w
 
 

@@ -11,6 +11,9 @@ import config_utils as config
 slim = tf.contrib.slim
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
+img_width = config.FLAGS.input_size_width
+img_height = config.FLAGS.input_size_height
+
 def int64_feature(value):
     """Wrapper for inserting int64 features into Example proto.
     """
@@ -162,8 +165,8 @@ def run(output_dir, shuffling=False, name='STV2K'):
     print('\nFinish converting datasets')
 
 
-IMAGE_HEIGHT = 300
-IMAGE_WIDTH = 300
+# IMAGE_HEIGHT = 300
+# IMAGE_WIDTH = 300
 
 filenames = '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord'
 
@@ -226,14 +229,14 @@ def read_and_decode():
 
     image_shape = tf.stack([height[0], width[0], 3])
     image = tf.reshape(image, image_shape)
-    image_size_const = tf.constant((IMAGE_HEIGHT, IMAGE_WIDTH, 3), dtype=tf.int32)
+    image_size_const = tf.constant((img_height, img_width, 3), dtype=tf.int32)
     # resize_image = tf.image.resize_image_with_crop_or_pad(image=image,
     #                                                       target_height=IMAGE_HEIGHT,
     #                                                       target_width=IMAGE_WIDTH)
-    resize_image = tf.image.resize_images(image, size=[IMAGE_HEIGHT, IMAGE_WIDTH])
+    resize_image = tf.image.resize_images(image, size=[img_height, img_width])
 
-    resize_ratio_x = tf.cast(IMAGE_WIDTH / width[0], tf.float32)
-    resize_ratio_y = tf.cast(IMAGE_HEIGHT / height[0], tf.float32)
+    resize_ratio_x = tf.cast(img_width / width[0], tf.float32)
+    resize_ratio_y = tf.cast(img_height / height[0], tf.float32)
     x1_r = x1 * resize_ratio_x
     x2_r = x2 * resize_ratio_x
     x3_r = x3 * resize_ratio_x

@@ -14,8 +14,10 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_train/'
 img_name = 'STV2K_tr_0017.jpg'
-default_size = STVNet.default_params.img_shape
-input_size = default_size
+
+img_width = config.FLAGS.input_size_width
+img_height = config.FLAGS.input_size_height
+input_size = (img_width, img_height)
 # gpu_list = config.FLAGS.gpu_list.split(',')
 # gpus = [int(gpu_list[i]) for i in range(len(gpu_list))]
 
@@ -50,6 +52,8 @@ def convert_poly_to_bbox(polys):
 def test(img_name):
     tf.logging.set_verbosity(tf.logging.INFO)
     with tf.Graph().as_default():
+        STVNet.redefine_params(img_width, img_height)
+
         im = get_image(STV2K_Path + img_name)
         polys,_ = data_utils.load_annotation(STV2K_Path + img_name.replace('.jpg', '.txt'))
 
