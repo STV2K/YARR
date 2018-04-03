@@ -13,32 +13,34 @@ import matplotlib.pyplot as plt
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_train/'
-img_name = 'STV2K_tr_0017.jpg'
+img_name = 'STV2K_tr_0006.jpg'
 
 img_width = config.FLAGS.input_size_width
 img_height = config.FLAGS.input_size_height
 input_size = (img_width, img_height)
+ckpt_path = config.FLAGS.ckpt_path
 # gpu_list = config.FLAGS.gpu_list.split(',')
 # gpus = [int(gpu_list[i]) for i in range(len(gpu_list))]
 
 def get_image(img_path):
     im = Image.open(img_path)
+    ori_width, ori_height = im.size
     im = im.resize(input_size)
     im = np.array(im)
-    # img_input = tf.to_float(tf.convert_to_tensor(im))
 
-    return im
+    return im, ori_width, ori_height
 
-def convert_poly_to_bbox(polys):
+def convert_poly_to_bbox(polys, ori_width, ori_height):
     bboxes = []
+    print(ori_width, ori_height)
     for poly in polys:
         (x1, y1, x2, y2, x3, y3, x4, y4) = poly
         x = [x1, x2, x3, x4]
         y = [y1, y2, y3, y4]
-        xmin = min(x) / input_size[0]
-        xmax = max(x) / input_size[0]
-        ymin = min(y) / input_size[1]
-        ymax = max(y) / input_size[1]
+        xmin = min(x) / ori_width
+        xmax = max(x) / ori_width
+        ymin = min(y) / ori_height
+        ymax = max(y) / ori_height
 
         if xmin < 0:
             xmin = 0
@@ -47,14 +49,15 @@ def convert_poly_to_bbox(polys):
 
         bbox = [ymin, xmin, ymax, xmax]
         bboxes.append(bbox)
+    print(bboxes)
     return bboxes
 
 def test(img_name):
     tf.logging.set_verbosity(tf.logging.INFO)
     with tf.Graph().as_default():
-        STVNet.redefine_params(img_width, img_height)
+        # STVNet.redefine_params(img_width, img_height)
 
-        im = get_image(STV2K_Path + img_name)
+        im, ori_width, ori_height = get_image(STV2K_Path + img_name)
         polys,_ = data_utils.load_annotation(STV2K_Path + img_name.replace('.jpg', '.txt'))
 
         label = tf.placeholder(tf.int64, shape=[None], name='labels')
@@ -82,10 +85,13 @@ def test(img_name):
         with tf.Session() as sess: # config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
             sess.run(tf.global_variables_initializer())
             sess.run(tf.local_variables_initializer())
-        
-            saver.restore(sess, model_dir + 'stvnet.ckpt-18100')
+            
+            if ckpt_path:
+                saver.restore(sess, ckpt_path)
+            else:
+                saver.restore(sess, model_dir + 'stvnet.ckpt-18100')
 
-            gt_bboxes = convert_poly_to_bbox(polys)
+            gt_bboxes = convert_poly_to_bbox(polys, ori_width, ori_height)
             gt_labels = [1 for i in range(len(gt_bboxes))]
 
             pre_s, pre_box, p_loss, n_loss, lc_loss = sess.run([pre_scores, pre_bboxes, pos_loss, neg_loss, loc_loss],
@@ -100,7 +106,7 @@ def test(img_name):
             # fig = plt.figure(figsize=(12, 12))
             # plt.imshow(img)
             result_img = Image.fromarray(np.uint8(img))
-            result_img.save('results/result' + img_name)
+            result_img.save('results/result-v2-' + img_name)
             print('positive loss: ', p_loss)
             print('negtive loss: ', n_loss)
             print('localisation loss: ', lc_loss)
@@ -109,7 +115,7 @@ def test(img_name):
 def bboxes_draw_on_img(img, scores, bboxes, color, thickness=5):
     shape = img.shape
     for i in range(len(bboxes)):
-        if(scores[i] < 0.5):
+        if(scores[i] > 0.5):
             color = (255, 255, 255)
         else:
             color = (31, 119, 180)

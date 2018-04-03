@@ -101,7 +101,9 @@ def train():
         # saver = tf.train.Saver(var_list=new_var_list)
 
         saver = tf.train.Saver()
-        with tf.Session() as sess:
+        tf_config = tf.ConfigProto()
+        tf_config.gpu_options.allow_growth = True
+        with tf.Session(config=tf_config) as sess:
             sess.run(tf.global_variables_initializer())
             sess.run(tf.local_variables_initializer())
 
@@ -114,7 +116,7 @@ def train():
             summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
             batch_size = config.FLAGS.batch_size
 
-            step = 1
+            step = 17301
             while(True):
 
                 b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
@@ -126,25 +128,26 @@ def train():
                 sum_ploss = 0.0
                 sum_nloss = 0.0
                 sum_lcloss = 0.0
+                last_num = step * batch_size
                 for i in range(batch_size):
                     labels = [1 for i in range(b_bbox_num[i][0])]
                     
                     _, ploss, nloss, lcloss, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, merged],
                                                                     feed_dict={inputs: [b_image[i]], label: labels, bboxes: b_bboxes[i]})
                     # print('step: ', i, ', loss: ', lcloss)
-                    if lcloss != 0.0:
+                    if lcloss == 0.0:
                         flag += 1
-                        sum_ploss += ploss
-                        sum_nloss += nloss
-                        sum_lcloss += lcloss
+                        continue
+                    sum_ploss += ploss
+                    sum_nloss += nloss
+                    sum_lcloss += lcloss
 
-                        summary_writer.add_summary(summary_str, step * batch_size + i)
-                        summary_writer.flush()
+                    summary_writer.add_summary(summary_str, last_num + i)
+                    summary_writer.flush()
 
-                print()
-                tf.logging.info('%s: Step %d: PositiveLoss = %.2f' % (datetime.now(), step, sum_ploss / flag))
-                tf.logging.info('%s: Step %d: NegtiveLoss = %.2f' % (datetime.now(), step, sum_nloss / flag))
-                tf.logging.info('%s: Step %d: LocalizationLoss = %.2f' % (datetime.now(), step, sum_lcloss / flag))
+                tf.logging.info('%s: Step %d: PositiveLoss = %.2f' % (datetime.now(), step, sum_ploss / (batch_size - flag)))
+                tf.logging.info('%s: Step %d: NegtiveLoss = %.2f' % (datetime.now(), step, sum_nloss / (batch_size - flag)))
+                tf.logging.info('%s: Step %d: LocalizationLoss = %.2f' % (datetime.now(), step, sum_lcloss / (batch_size - flag)))
 
                 if step % 100 == 0:
                     saver.save(sess, save_dir + 'stvnet.ckpt', global_step=step)
