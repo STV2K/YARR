@@ -500,6 +500,53 @@ def tf_ssd_bboxes_encode(labels,
                 target_scores.append(t_scores)
         return target_labels, target_localizations, target_scores
 
+def tf_ssd_bboxes_batch_encode(labels,
+                         bboxes,
+                         anchors,
+                         batch_size,
+                         num_classes=default_params.num_classes,
+                         # no_annotation_label,
+                         ignore_threshold=0.5,
+                         prior_scaling=[0.1, 0.1, 0.2, 0.2],
+                         dtype=tf.float32,
+                         scope='ssd_bboxes_encode'):
+    """Encode groundtruth labels and bounding boxes using SSD net anchors.
+    Encoding boxes for all feature layers.
+
+    Arguments:
+      labels: BatchSizex1D Tensor(int64) containing groundtruth labels;
+      bboxes: BatchSizexNx4 Tensor(float) with bboxes relative coordinates;
+      anchors: List of Numpy array with layer anchors;
+      matching_threshold: Threshold for positive match with groundtruth bboxes;
+      prior_scaling: Scaling of encoded coordinates.
+
+    Return:
+      (target_labels, target_localizations, target_scores):
+        Each element is a list of target Tensors.
+    """
+    with tf.name_scope(scope):
+        target_labels = []
+        target_localizations = []
+        target_scores = []
+        for i, anchors_layer in enumerate(anchors):
+            with tf.name_scope('bboxes_encode_block_%i' % i):
+                layer_labels = []
+                layer_localizations = []
+                layer_scores = []
+                for j in range(batch_size):
+                    t_labels, t_loc, t_scores = \
+                        tf_ssd_bboxes_encode_layer(labels[j], bboxes[j], anchors_layer,
+                                                   num_classes, # no_annotation_label,
+                                                   ignore_threshold,
+                                                   prior_scaling, dtype)
+                    layer_labels.append(t_labels)
+                    layer_localizations.append(t_loc)
+                    layer_scores.append(t_scores)
+                target_labels.append(layer_labels)
+                target_localizations.append(layer_localizations)
+                target_scores.append(layer_scores)
+        return target_labels, target_localizations, target_scores
+
 # encode gt for one layer
 def tf_ssd_bboxes_encode_layer(labels,
                                bboxes,
@@ -645,7 +692,6 @@ def ssd_losses(logits, localisations,
            scope=None):
     with tf.name_scope(scope, 'ssd_losses'):
         lshape = tfe.get_shape(tf.convert_to_tensor(logits[0]), 5)
-        print(lshape)
         num_classes = lshape[-1]
         batch_size = lshape[0]
 

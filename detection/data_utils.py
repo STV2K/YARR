@@ -172,6 +172,7 @@ def run(output_dir, shuffling=False, name='STV2K'):
 train_filenames = ['/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord',
                    '/media/data2/hcx_data/STV2KTF/STV2K_0001.tfrecord',
                    '/media/data2/hcx_data/STV2KTF/STV2K_0002.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF/STV2K_0003.tfrecord',
                    '/media/data2/hcx_data/STV2KTF/STV2K_0004.tfrecord',
                    '/media/data2/hcx_data/STV2KTF/STV2K_0005.tfrecord',
                    '/media/data2/hcx_data/STV2KTF/STV2K_0006.tfrecord']
