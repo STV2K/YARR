@@ -59,14 +59,25 @@ default_params = STVParams(
       )
 
 def redefine_params(img_width, img_height):
-    default_params.img_shape = (img_height, img_width)
-    default_params.feat_shapes = [(math.ceil(img_height / 8), math.ceil(img_width / 8)),
-                                  (math.ceil(img_height / 16), math.ceil(img_width / 16)),
-                                  (math.ceil(img_height / 32), math.ceil(img_width / 32)),
-                                  (math.ceil(img_height / 64), math.ceil(img_width / 64)),
-                                  (math.ceil(img_height / 128), math.ceil(img_width / 128)),
-                                  (math.ceil(img_height / 256), math.ceil(img_width / 256))]
-
+    default_bk = default_params
+    default_params = STVParams(
+        img_shape=(img_height, img_width),
+        num_classes=default_bk.num_classes,
+        feat_layers=default_bk.feat_layers,
+        feat_shape=[(math.ceil(img_height / 8), math.ceil(img_width / 8)),
+                    (math.ceil(img_height / 16), math.ceil(img_width / 16)),
+                    (math.ceil(img_height / 32), math.ceil(img_width / 32)),
+                    (math.ceil(img_height / 64), math.ceil(img_width / 64)),
+                    (math.ceil(img_height / 128), math.ceil(img_width / 128)),
+                    (math.ceil(img_height / 256), math.ceil(img_width / 256))],
+        anchor_size_bounds=default_bk.anchor_size_bounds,
+        anchor_sizes=default_bk.anchor_sizes,
+        anchor_ratios=default_bk.anchor_ratios,
+        anchor_steps=default_bk.anchor_steps,
+        anchor_offset=default_bk.anchor_offset,
+        normalizations=default_bk.normalizations,
+        prior_scaling=default_bk.prior_scaling
+        )
 
 def stv_arg_scope(weight_decay=0.0005, data_format='NHWC'):
     """Defines the VGG arg scope.
@@ -634,6 +645,7 @@ def ssd_losses(logits, localisations,
            scope=None):
     with tf.name_scope(scope, 'ssd_losses'):
         lshape = tfe.get_shape(tf.convert_to_tensor(logits[0]), 5)
+        print(lshape)
         num_classes = lshape[-1]
         batch_size = lshape[0]
 

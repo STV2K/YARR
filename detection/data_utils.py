@@ -168,16 +168,24 @@ def run(output_dir, shuffling=False, name='STV2K'):
 # IMAGE_HEIGHT = 300
 # IMAGE_WIDTH = 300
 
-filenames = '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord'
+# filenames = '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord'
+train_filenames = ['/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF/STV2K_0001.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF/STV2K_0002.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF/STV2K_0004.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF/STV2K_0005.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF/STV2K_0006.tfrecord']
+val_filenames = ['/media/data2/hcx_data/STV2KTF/STV2K_0003.tfrecord']
 
-def read_and_decode():
-    filename_queue = tf.train.string_input_producer(['/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord',
-                                                     '/media/data2/hcx_data/STV2KTF/STV2K_0001.tfrecord',
-                                                     '/media/data2/hcx_data/STV2KTF/STV2K_0002.tfrecord',
-                                                     '/media/data2/hcx_data/STV2KTF/STV2K_0003.tfrecord',
-                                                     '/media/data2/hcx_data/STV2KTF/STV2K_0004.tfrecord',
-                                                     '/media/data2/hcx_data/STV2KTF/STV2K_0005.tfrecord',
-                                                     '/media/data2/hcx_data/STV2KTF/STV2K_0006.tfrecord'])
+
+def read_data(train=True):
+    if train:
+        return read_and_decode(train_filenames)
+    else:
+        return read_and_decode(val_filenames)
+
+def read_and_decode(filenames_string):
+    filename_queue = tf.train.string_input_producer(filenames_string)
                                                      # num_epochs=10)
 
     reader = tf.TFRecordReader()

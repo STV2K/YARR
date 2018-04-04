@@ -72,7 +72,8 @@ def train():
     with tf.Graph().as_default():
         # STVNet.redefine_params(img_width, img_height)
 
-        image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num = data_utils.read_and_decode()
+        image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num = data_utils.read_data(train=True)
+        # vimage, vx1_r, vx2_r, vx3_r, vx4_r, vy1_r, vy2_r, vy3_r, vy4_r, vbbox_num = data_utils.read_data(train=False)
 
         label = tf.placeholder(tf.int64, shape=[None], name='labels')
         bboxes = tf.placeholder(tf.float32, shape=[None, 4], name='bboxes')
@@ -117,7 +118,8 @@ def train():
             batch_size = config.FLAGS.batch_size
 
             step = 17301
-            while(True):
+            while_flag = True
+            while(while_flag):
 
                 b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
                     sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
@@ -129,7 +131,7 @@ def train():
                 sum_nloss = 0.0
                 sum_lcloss = 0.0
                 last_num = step * batch_size
-                for i in range(batch_size):
+                for i in range(1) # batch_size):
                     labels = [1 for i in range(b_bbox_num[i][0])]
                     
                     _, ploss, nloss, lcloss, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, merged],
@@ -153,10 +155,33 @@ def train():
                     saver.save(sess, save_dir + 'stvnet.ckpt', global_step=step)
                 step += 1
 
+                while_flag = False
+
             coord.request_stop()
             coord.join(threads)
 
 
+def validate(saver):
+
+    # ckpt_dir = save_dir
+    # last_checkpoint = saver.latest_checkpoint(ckpt_dir)
+
+    # validation
+    if step % 50 == 0:
+        val_b_image, val_b_x1, val_b_x2, val_b_x3, val_b_x4, val_b_y1, val_b_y2, val_b_y3, val_b_y4, val_b_bbox_num = \
+            sess.run([vimage, vx1_r, vx2_r, vx3_r, vx4_r, vy1_r, vy2_r, vy3_r, vy4_r, vbbox_num])
+        val_bboxes = generate_batch_bboxes(val_b_x1, val_b_x2, val_b_x3, val_b_x4,
+                                           val_b_y1, val_b_y2, val_b_y3, val_b_y4,
+                                           val_b_bbox_num)
+
+        for i in range(batch_size):
+            labels = [1 for i in range(b_bbox_num[i][0])]
+
+            _, ploss, nloss, lcloss, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, merged],
+                                                                    feed_dict={inputs: [b_image[i]], label: labels, bboxes: b_bboxes[i]})
+
+
+# useless
 def change_paras():
     var_ssd, reader_ssd = get_model_data(model_name)
     var_stv, reader_stv = get_model_data('stvnet/stvnet.ckpt')
