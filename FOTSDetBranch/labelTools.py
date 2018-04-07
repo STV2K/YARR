@@ -4,10 +4,15 @@
 
 import os
 import numpy as np
+from shapely.geometry import Polygon
 
-class labelReader:
-    def readSTV2kLabel(self, labelPath):
-        '''
+
+__STV2kImageWidth = 2448
+__STV2kImageHeight = 3264
+
+class LabelReader:
+    def read_stv2k_label(self, label_path):
+        """
         Load the new STV2k label file into arrays.
         @return *xAxis*, *yAxis* and *content*.
 
@@ -19,32 +24,42 @@ class labelReader:
             [Repeat for other bounding boxes]
 
         NOTICE: Some indices in the label files may be out of boundary, which are NOT tackled here.
-        '''
-        xAxis = []
-        yAxis = []
+        """
+        x_axis = []
+        y_axis = []
         content = []
-        with open(labelPath, "r", encoding = "GB2312") as lf:
+        with open(label_path, "r", encoding = "GB2312") as lf:
             count = 0
             for line in lf:
-                if (count % 3 == 0 and line != ""):
+                if count % 3 == 0 and line != "":
                     line = line.strip().split(",")
-                    xAxis.append(list(map(int, line[0:-1:2])))
-                    yAxis.append(list(map(int, line[1::2])))
-                if (count % 3 == 1):
+                    x_axis.append(list(map(int, line[0:-1:2])))
+                    y_axis.append(list(map(int, line[1::2])))
+                if count % 3 == 1:
                     content.append(line.strip())
                 count += 1
-        return (np.array(xAxis).astype(int), np.array(yAxis).astype(int), content)
+        return np.array(x_axis).astype(int), np.array(y_axis).astype(int), content
 
 
-class labelTransformer:
-    def transSTV2ktoFOTS(self, labelPath):
-        '''
-        Transform STV2k labels to FOTS style notations:
-        1/4 sized pixel-wise six-channel output, 
-        describing probability, relative distance to top/bottom/left/right and orientation.
-        @return *outmap*, a float array of size 6 * (w/4) * (h/4)
-
-        @todo + Is the distance relative or absolute?
-                I think rela_dist may be better since it is independent from the img size but not sure: ( 
-        '''
-        pass
+# class LabelTransformer:
+#     def transSTV2ktoFOTSdet(self, xAxis, yAxis, content, width = ):
+#         """
+#         Transform STV2k labels to FOTS style notations:
+#         1/4 sized pixel-wise six-channel output,
+#         describing probability, relative distance to top/bottom/left/right and orientation.
+#         @return *outmap*, a float array of size 6 * (w/4) * (h/4)
+#                 **
+#
+#         @policy + Is the distance relative or absolute? = Using relative dist
+#                 + Don't Care channel                    = Removing all blank-content labels
+#                 + Overlapping labels                    = Prob to 1, max(btmAndRightDist), min(topAndLeft),
+#                                                           set orientation as nearest label center
+#                 + Distinguishing vertical texts and
+#                   horizontal texts with 90-angle orientation  = Need further discussions
+#                   -- do we tackle this in detection (mark as diff type)
+#                      or recognition (robust to mirrored/vertical/horizontal text)?
+#
+#         @change Going to adopt this part from [EAST](https://github.com/argman/EAST)
+#                 since there's no need to transform labels to score maps.
+#         """
+#         pass
