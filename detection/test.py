@@ -10,7 +10,7 @@ from nets import STVNet
 from PIL import Image
 import matplotlib.pyplot as plt
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_train/'
 img_name = 'STV2K_tr_0006.jpg'
@@ -106,7 +106,7 @@ def test(img_name):
             # fig = plt.figure(figsize=(12, 12))
             # plt.imshow(img)
             result_img = Image.fromarray(np.uint8(img))
-            result_img.save('results/result-v2-' + img_name)
+            result_img.save('results/result-v3-' + img_name)
             print('positive loss: ', p_loss)
             print('negtive loss: ', n_loss)
             print('localisation loss: ', lc_loss)

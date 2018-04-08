@@ -771,4 +771,6 @@ def ssd_losses(logits, localisations,
             loc_loss = loss
         
         # add return to run
-        return pos_loss, neg_loss, loc_loss
+        regularization_loss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+        regular_loss = tf.add_n(regularization_loss)
+        return pos_loss, neg_loss, loc_loss, regular_loss

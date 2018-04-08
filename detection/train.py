@@ -100,8 +100,8 @@ def train():
         predictions, localisations, logits, end_points = STVNet.model(inputs)
         gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_batch_encode(label, bboxes, anchors, config.FLAGS.batch_size)
 
-        pos_loss, neg_loss, loc_loss = STVNet.ssd_losses(logits, localisations, gclasses, glocal, gscores)
-        total_loss = pos_loss + neg_loss + loc_loss
+        pos_loss, neg_loss, loc_loss, regular_loss = STVNet.ssd_losses(logits, localisations, gclasses, glocal, gscores)
+        total_loss = pos_loss + neg_loss + loc_loss + regular_loss
 
         optimizer = tf.train.GradientDescentOptimizer(config.FLAGS.learning_rate)
         global_step = tf.Variable(0, name='global_step', trainable=False)
@@ -110,6 +110,7 @@ def train():
         tf.summary.scalar("pos_loss", pos_loss)
         tf.summary.scalar("neg_loss", neg_loss)
         tf.summary.scalar("loc_loss", loc_loss)
+        tf.summary.scalar("regular_loss", regular_loss)
         tf.summary.scalar("total_loss", total_loss)
         merged = tf.summary.merge_all()
 
@@ -134,7 +135,7 @@ def train():
             summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
             batch_size = config.FLAGS.batch_size
 
-            step = 1
+            step = 8401
             while_flag = True
             while(while_flag):
 
