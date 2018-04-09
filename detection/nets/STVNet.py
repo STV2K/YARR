@@ -55,7 +55,13 @@ default_params = STVParams(
       anchor_steps=[8, 16, 32, 64, 128, 256],
       anchor_offset=0.5,
       normalizations=[20, -1, -1, -1, -1, -1],
-      prior_scaling=[0.1, 0.1, 0.2, 0.2]
+      prior_scaling=[0.1, 0.1, 0.2, 0.2],
+      mbox_kernel = [(3, 5),
+                     (3, 5),
+                     (3, 5),
+                     (3, 5),
+                     (3, 5),
+                     (1, 1)]
       )
 
 def redefine_params(img_width, img_height):
@@ -104,6 +110,7 @@ def model(images,
           anchor_sizes=default_params.anchor_sizes,
           anchor_ratios=default_params.anchor_ratios,
           normalizations=default_params.normalizations,
+          kernels=default_params.mbox_kernel,
           prediction_fn=slim.softmax,
           reuse=None,
           weight_decay=1e-5,
@@ -162,7 +169,8 @@ def model(images,
                                                   num_classes,
                                                   anchor_sizes[i],
                                                   anchor_ratios[i],
-                                                  normalizations[i])
+                                                  normalizations[i],
+                                                  kernels[i])
                     predictions.append(prediction_fn(p))
                     logits.append(p)
                     localisations.append(l)
@@ -175,6 +183,7 @@ def ssd_multibox_layer(inputs,
                        sizes,
                        ratios=[1],
                        normalization=-1,
+                       kernel=[1, 1],
                        bn_normalization=False):
     """Construct a multibox layer, return a class and localization predictions.
     """
@@ -186,14 +195,14 @@ def ssd_multibox_layer(inputs,
 
     # Location.
     num_loc_pred = num_anchors * 4
-    loc_pred = slim.conv2d(net, num_loc_pred, [3, 5], activation_fn=None,
+    loc_pred = slim.conv2d(net, num_loc_pred, kernel, activation_fn=None,
                            scope='conv_loc')
     loc_pred = custom_layers.channel_to_last(loc_pred)
     loc_pred = tf.reshape(loc_pred,
                           tensor_shape(loc_pred, 4)[:-1]+[num_anchors, 4])
     # Class prediction.
     num_cls_pred = num_anchors * num_classes
-    cls_pred = slim.conv2d(net, num_cls_pred, [3, 5], activation_fn=None,
+    cls_pred = slim.conv2d(net, num_cls_pred, kernel, activation_fn=None,
                            scope='conv_cls')
     cls_pred = custom_layers.channel_to_last(cls_pred)
     cls_pred = tf.reshape(cls_pred,
@@ -716,29 +725,29 @@ def ssd_losses(logits, localisations,
         dtype = logits.dtype
 
         # Compute positive matching mask...
-        pmask = gscores > match_threshold
-        fpmask = tf.cast(pmask, dtype)
-        n_positives = tf.reduce_sum(fpmask)
+        pmask = gscores > match_threshold    # gt boxes > threshold     true or false
+        fpmask = tf.cast(pmask, dtype)       # float version of positive gt boxes
+        n_positives = tf.reduce_sum(fpmask)  # number of positive gt boxes
 
         # Hard negative mining...
-        no_classes = tf.cast(pmask, tf.int32)
-        predictions = slim.softmax(logits)
-        nmask = tf.logical_and(tf.logical_not(pmask),
+        no_classes = tf.cast(pmask, tf.int32)         # int version of positive gt boxes
+        predictions = slim.softmax(logits)            # softmax score predictions
+        nmask = tf.logical_and(tf.logical_not(pmask), # negtive mask
                                gscores > -0.5)
-        fnmask = tf.cast(nmask, dtype)
+        fnmask = tf.cast(nmask, dtype)                # float version of negtive mask
         nvalues = tf.where(nmask,
                            predictions[:, 0],
                            1. - fnmask)
         nvalues_flat = tf.reshape(nvalues, [-1])
         # Number of negative entries to select.
-        max_neg_entries = tf.cast(tf.reduce_sum(fnmask), tf.int32)
+        max_neg_entries = tf.cast(tf.reduce_sum(fnmask), tf.int32)    # number of negtives gt boxes
         n_neg = tf.cast(negative_ratio * n_positives, tf.int32) + batch_size
-        n_neg = tf.minimum(n_neg, max_neg_entries)
+        n_neg = tf.minimum(n_neg, max_neg_entries)    # find the suitable number of negtive gt boxes
 
-        val, idxes = tf.nn.top_k(-nvalues_flat, k=n_neg)
-        max_hard_pred = -val[-1]
+        val, idxes = tf.nn.top_k(-nvalues_flat, k=n_neg)   # find the negtive boxes which have the highest score, val < 0
+        max_hard_pred = -val[-1]    # find the one which has the largest score in negtive boxes
         # Final negative mask.
-        nmask = tf.logical_and(nmask, nvalues < max_hard_pred)
+        nmask = tf.logical_and(nmask, nvalues < max_hard_pred)  # find the negtive boxes we need(follow the ratio)
         fnmask = tf.cast(nmask, dtype)
 
         batch_size = tf.cast(batch_size, tf.float32)

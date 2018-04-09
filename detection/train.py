@@ -114,11 +114,6 @@ def train():
         tf.summary.scalar("total_loss", total_loss)
         merged = tf.summary.merge_all()
 
-        #TODO
-        # _, new_var_list = change_paras()
-        # new_var_list,_ = get_model_data(model_name) 
-        # saver = tf.train.Saver(var_list=new_var_list)
-
         saver = tf.train.Saver()
         tf_config = tf.ConfigProto()
         tf_config.gpu_options.allow_growth = True
@@ -141,30 +136,11 @@ def train():
 
                 b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
                     sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
-                #b_image = np.array(b_image)
 
                 b_labels, b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
-                # b_image, b_bboxes = sess.run([image, g_bboxes])
-
-                #flag = 0
-                #sum_ploss = 0.0
-                #sum_nloss = 0.0
-                #sum_lcloss = 0.0
-                #last_num = step * batch_size
-                #labels = []
-                #for i in range(batch_size):
-                #    label = [1 for i in range(b_bbox_num[i][0])]
-                #    labels.append(label)
                     
                 _, ploss, nloss, lcloss, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, merged],
                                                                 feed_dict={inputs: b_image, label: b_labels, bboxes: b_bboxes})
-                    # print('step: ', i, ', loss: ', lcloss)
-                    #if lcloss == 0.0:
-                    #    flag += 1
-                    #    continue
-                    #sum_ploss += ploss
-                    #sum_nloss += nloss
-                    #sum_lcloss += lcloss
 
                 summary_writer.add_summary(summary_str, step)
                 summary_writer.flush()
