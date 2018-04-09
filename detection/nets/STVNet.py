@@ -540,30 +540,25 @@ def tf_ssd_bboxes_batch_encode(labels,
         target_scores = []
         for i, anchors_layer in enumerate(anchors):
             with tf.name_scope('bboxes_encode_block_%i' % i):
-                t_labels, t_loc, t_scores = \
-                    tf_ssd_bboxes_encode_layer(labels, bboxes, anchors_layer,
-                                               num_classes, # no_annotation_label,
-                                               ignore_threshold,
-                                               prior_scaling, dtype)
-                target_labels.append(t_labels)
-                target_localizations.append(t_loc)
-                target_scores.append(t_scores)
+                layer_labels = []
+                layer_localizations = []
+                layer_scores = []
+                for j in range(batch_size):
+                    t_labels, t_loc, t_scores = \
+                        tf_ssd_bboxes_encode_layer(labels[j], bboxes[j], anchors_layer,
+                                                   num_classes, # no_annotation_label,
+                                                   ignore_threshold,
+                                                   prior_scaling, dtype)
+                    layer_labels.append(t_labels)
+                    layer_localizations.append(t_loc)
+                    layer_scores.append(t_scores)
 
-#                layer_labels = []
-#                layer_localizations = []
-#                layer_scores = []
-#                for j in range(batch_size):
-#                    t_labels, t_loc, t_scores = \
-#                        tf_ssd_bboxes_encode_layer(labels[j], bboxes[j], anchors_layer,
-#                                                   num_classes, # no_annotation_label,
-#                                                   ignore_threshold,
-#                                                   prior_scaling, dtype)
-#                    layer_labels.append(t_labels)
-#                    layer_localizations.append(t_loc)
-#                    layer_scores.append(t_scores)
-#                target_labels.append(layer_labels)
-#                target_localizations.append(layer_localizations)
-#                target_scores.append(layer_scores)
+                layer_labels = tf.stack(layer_labels)
+                layer_localizations = tf.stack(layer_localizations)
+                layer_scores = tf.stack(layer_scores)
+                target_labels.append(layer_labels)
+                target_localizations.append(layer_localizations)
+                target_scores.append(layer_scores)
         return target_labels, target_localizations, target_scores
 
 # encode gt for one layer
@@ -716,9 +711,9 @@ def ssd_losses(logits, localisations,
 
         #print('logits: ', logits)
         #print('localisations: ', localisations)
-        #print('gclasses: ', gclasses)
-        #print('glocalisations: ', glocalisations)
-        #print('gscores: ', gscores)
+        print('gclasses: ', gclasses)
+        print('glocalisations: ', glocalisations)
+        print('gscores: ', gscores)
 
         # Flatten out all vectors!
         flogits = []
