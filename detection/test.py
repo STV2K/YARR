@@ -10,10 +10,10 @@ from nets import STVNet
 from PIL import Image
 import matplotlib.pyplot as plt
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
-STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_train/'
-img_name = 'STV2K_tr_0006.jpg'
+STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_test/'
+img_name = 'STV2K_ts_0073.jpg'
 
 img_width = config.FLAGS.input_size_width
 img_height = config.FLAGS.input_size_height
@@ -49,7 +49,6 @@ def convert_poly_to_bbox(polys, ori_width, ori_height):
 
         bbox = [ymin, xmin, ymax, xmax]
         bboxes.append(bbox)
-    print(bboxes)
     return bboxes
 
 def test(img_name):
@@ -68,7 +67,7 @@ def test(img_name):
         anchors = STVNet.ssd_anchors_all_layers()
         predictions, localisations, logits, end_points = STVNet.model(inputs)
         gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_encode(label, bboxes, anchors)
-        pos_loss, neg_loss, loc_loss = STVNet.ssd_losses(logits, localisations, gclasses, glocal, gscores)
+        pos_loss, neg_loss, loc_loss, _ = STVNet.ssd_losses(logits, localisations, gclasses, glocal, gscores)
 
         # with tf.device('/device:CPU:0'):
         pre_locals = STVNet.tf_ssd_bboxes_decode(localisations, anchors, scope='bboxes_decode')
