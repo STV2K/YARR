@@ -100,7 +100,7 @@ def train():
         predictions, localisations, logits, end_points = STVNet.model(inputs)
         gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_batch_encode(label, bboxes, anchors, config.FLAGS.batch_size)
 
-        pos_loss, neg_loss, loc_loss, regular_loss = STVNet.ssd_losses(logits, localisations, gclasses, glocal, gscores)
+        pos_loss, neg_loss, loc_loss, regular_loss, ret1, ret2 = STVNet.ssd_losses(logits, localisations, gclasses, glocal, gscores)
         total_loss = pos_loss + neg_loss + loc_loss + regular_loss
 
         optimizer = tf.train.GradientDescentOptimizer(config.FLAGS.learning_rate)
@@ -127,7 +127,7 @@ def train():
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
 
-            summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
+#            summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
             batch_size = config.FLAGS.batch_size
 
             step = 8401
@@ -139,19 +139,23 @@ def train():
 
                 b_labels, b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
                     
-                _, ploss, nloss, lcloss, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, merged],
+                _, ploss, nloss, lcloss, retloss1, retloss2, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, ret1, ret2, merged],
                                                                 feed_dict={inputs: b_image, label: b_labels, bboxes: b_bboxes})
 
-                summary_writer.add_summary(summary_str, step)
-                summary_writer.flush()
+#                summary_writer.add_summary(summary_str, step)
+#                summary_writer.flush()
 
                 tf.logging.info('%s: Step %d: PositiveLoss = %.2f' % (datetime.now(), step, ploss))#sum_ploss / (batch_size - flag)))
                 tf.logging.info('%s: Step %d: NegtiveLoss = %.2f' % (datetime.now(), step, nloss))#sum_nloss / (batch_size - flag)))
                 tf.logging.info('%s: Step %d: LocalizationLoss = %.2f' % (datetime.now(), step, lcloss))#sum_lcloss / (batch_size - flag)))
+                print('ret1 value: ', retloss1)
+                print('ret1 len: ', len(retloss1))
+                print(retloss2)
 
                 if step % 200 == 0:
                     saver.save(sess, save_dir + 'stvnet.ckpt', global_step=step)
                 step += 1
+                while_flag=False
 
 
             coord.request_stop()

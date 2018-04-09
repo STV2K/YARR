@@ -23,7 +23,8 @@ STVParams = namedtuple('STVParameters', ['img_shape',
                                          'anchor_steps',
                                          'anchor_offset',
                                          'normalizations',
-                                         'prior_scaling'
+                                         'prior_scaling',
+                                         'mbox_kernel'
                                          ])
 
 default_params = STVParams(
@@ -539,21 +540,30 @@ def tf_ssd_bboxes_batch_encode(labels,
         target_scores = []
         for i, anchors_layer in enumerate(anchors):
             with tf.name_scope('bboxes_encode_block_%i' % i):
-                layer_labels = []
-                layer_localizations = []
-                layer_scores = []
-                for j in range(batch_size):
-                    t_labels, t_loc, t_scores = \
-                        tf_ssd_bboxes_encode_layer(labels[j], bboxes[j], anchors_layer,
-                                                   num_classes, # no_annotation_label,
-                                                   ignore_threshold,
-                                                   prior_scaling, dtype)
-                    layer_labels.append(t_labels)
-                    layer_localizations.append(t_loc)
-                    layer_scores.append(t_scores)
-                target_labels.append(layer_labels)
-                target_localizations.append(layer_localizations)
-                target_scores.append(layer_scores)
+                t_labels, t_loc, t_scores = \
+                    tf_ssd_bboxes_encode_layer(labels, bboxes, anchors_layer,
+                                               num_classes, # no_annotation_label,
+                                               ignore_threshold,
+                                               prior_scaling, dtype)
+                target_labels.append(t_labels)
+                target_localizations.append(t_loc)
+                target_scores.append(t_scores)
+
+#                layer_labels = []
+#                layer_localizations = []
+#                layer_scores = []
+#                for j in range(batch_size):
+#                    t_labels, t_loc, t_scores = \
+#                        tf_ssd_bboxes_encode_layer(labels[j], bboxes[j], anchors_layer,
+#                                                   num_classes, # no_annotation_label,
+#                                                   ignore_threshold,
+#                                                   prior_scaling, dtype)
+#                    layer_labels.append(t_labels)
+#                    layer_localizations.append(t_loc)
+#                    layer_scores.append(t_scores)
+#                target_labels.append(layer_labels)
+#                target_localizations.append(layer_localizations)
+#                target_scores.append(layer_scores)
         return target_labels, target_localizations, target_scores
 
 # encode gt for one layer
@@ -704,6 +714,12 @@ def ssd_losses(logits, localisations,
         num_classes = lshape[-1]
         batch_size = lshape[0]
 
+        #print('logits: ', logits)
+        #print('localisations: ', localisations)
+        #print('gclasses: ', gclasses)
+        #print('glocalisations: ', glocalisations)
+        #print('gscores: ', gscores)
+
         # Flatten out all vectors!
         flogits = []
         fgclasses = []
@@ -756,7 +772,9 @@ def ssd_losses(logits, localisations,
         with tf.name_scope('cross_entropy_pos'):
             loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
                                                                   labels=gclasses)
+            ret_loss1 = loss
             loss = tf.div(tf.reduce_sum(loss * fpmask), batch_size, name='value')
+            ret_loss2 = loss
             tf.losses.add_loss(loss)
 
             pos_loss = loss
@@ -782,4 +800,4 @@ def ssd_losses(logits, localisations,
         # add return to run
         regularization_loss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
         regular_loss = tf.add_n(regularization_loss)
-        return pos_loss, neg_loss, loc_loss, regular_loss
+        return pos_loss, neg_loss, loc_loss, regular_loss, ret_loss1, ret_loss2
