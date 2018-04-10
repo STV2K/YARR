@@ -711,9 +711,9 @@ def ssd_losses(logits, localisations,
 
         #print('logits: ', logits)
         #print('localisations: ', localisations)
-        print('gclasses: ', gclasses)
-        print('glocalisations: ', glocalisations)
-        print('gscores: ', gscores)
+        #print('gclasses: ', gclasses)
+        #print('glocalisations: ', glocalisations)
+        #print('gscores: ', gscores)
 
         # Flatten out all vectors!
         flogits = []
@@ -767,9 +767,9 @@ def ssd_losses(logits, localisations,
         with tf.name_scope('cross_entropy_pos'):
             loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
                                                                   labels=gclasses)
-            ret_loss1 = loss
+            #ret_loss1 = loss
             loss = tf.div(tf.reduce_sum(loss * fpmask), batch_size, name='value')
-            ret_loss2 = loss
+            #ret_loss2 = loss
             tf.losses.add_loss(loss)
 
             pos_loss = loss
@@ -795,4 +795,4 @@ def ssd_losses(logits, localisations,
         # add return to run
         regularization_loss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
         regular_loss = tf.add_n(regularization_loss)
-        return pos_loss, neg_loss, loc_loss, regular_loss, ret_loss1, ret_loss2
+        return pos_loss, neg_loss, loc_loss, regular_loss #, ret_loss1, ret_loss2
