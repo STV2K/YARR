@@ -31,7 +31,8 @@ default_params = STVParams(
       img_shape=(300, 300),
       num_classes=2,
       no_annotation_label=21,
-      feat_layers=['stvnet/resnet_v1_50/block1', 'block5', 'block6', 'block7', 'block8', 'block9'],
+      #feat_layers=['stvnet/resnet_v1_50/block1', 'block5', 'block6', 'block7', 'block8', 'block9'],
+      feat_layers=['block4', 'block7', 'block8', 'block9', 'block10', 'block11'],
       feat_shapes=[(38, 38), (19, 19), (10, 10), (5, 5), (3, 3), (1, 1)],
       anchor_size_bounds=[0.15, 0.90],
       # anchor_size_bounds=[0.20, 0.90],
@@ -127,39 +128,61 @@ def model(images,
 
     #with slim.arg_scope(resnet_utils.resnet_arg_scope(weight_decay=weight_decay)):
         
+        end_points = {}
         with tf.variable_scope('stvnet', 'stvnet', [images], reuse=reuse):
-            net, end_points = resnet_v1.resnet_v1_50(images,
-                                  is_training=is_training,
-                                  scope='resnet_v1_50')
+            # net, end_points = resnet_v1.resnet_v1_50(images,
+            #                       is_training=is_training,
+            #                       scope='resnet_v1_50')
             
-            # Block 3: let's dilate the hell out of it!
-            net = slim.conv2d(net, 1024, [3, 3], rate=6, scope='conv6')
+            # Original VGG-16 blocks.
+            net = slim.repeat(inputs, 2, slim.conv2d, 64, [3, 3], scope='conv1')
+            end_points['block1'] = net
+            net = slim.max_pool2d(net, [2, 2], scope='pool1')
+            # Block 2.
+            net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], scope='conv2')
+            end_points['block2'] = net
+            net = slim.max_pool2d(net, [2, 2], scope='pool2')
+            # Block 3.
+            net = slim.repeat(net, 3, slim.conv2d, 256, [3, 3], scope='conv3')
+            end_points['block3'] = net
+            net = slim.max_pool2d(net, [2, 2], scope='pool3')
+            # Block 4.
+            net = slim.repeat(net, 3, slim.conv2d, 512, [3, 3], scope='conv4')
             end_points['block4'] = net
-            net = tf.layers.dropout(net, rate=dropout_keep_prob, training=is_training)
-            # Block 4: 1x1 conv. Because the fuck.
-            net = slim.conv2d(net, 1024, [1, 1], scope='conv7')
+            net = slim.max_pool2d(net, [2, 2], scope='pool4')
+            # Block 5.
+            net = slim.repeat(net, 3, slim.conv2d, 512, [3, 3], scope='conv5')
             end_points['block5'] = net
+            net = slim.max_pool2d(net, [3, 3], stride=1, scope='pool5')
+
+            # Block 4: let's dilate the hell out of it!
+            net = slim.conv2d(net, 1024, [3, 3], rate=6, scope='conv6')
+            end_points['block6'] = net
+            net = tf.layers.dropout(net, rate=dropout_keep_prob, training=is_training)
+            # Block 5: 1x1 conv. Because the fuck.
+            net = slim.conv2d(net, 1024, [1, 1], scope='conv7')
+            end_points['block7'] = net
             net = tf.layers.dropout(net, rate=dropout_keep_prob, training=is_training)
 
-            # Block 8/9/10/11: 1x1 and 3x3 convolutions stride 2 (except lasts).
-            end_point = 'block6'
+            # Block 6/7/8/9: 1x1 and 3x3 convolutions stride 2 (except lasts).
+            end_point = 'block8'
             with tf.variable_scope(end_point):
                 net = slim.conv2d(net, 256, [1, 1], scope='conv1x1')
                 net = custom_layers.pad2d(net, pad=(1, 1))
                 net = slim.conv2d(net, 512, [3, 3], stride=2, scope='conv3x3', padding='VALID')
             end_points[end_point] = net
-            end_point = 'block7'
+            end_point = 'block9'
             with tf.variable_scope(end_point):
                 net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
                 net = custom_layers.pad2d(net, pad=(1, 1))
                 net = slim.conv2d(net, 256, [3, 3], stride=2, scope='conv3x3', padding='VALID')
             end_points[end_point] = net
-            end_point = 'block8'
+            end_point = 'block10'
             with tf.variable_scope(end_point):
                 net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
                 net = slim.conv2d(net, 256, [3, 3], scope='conv3x3', padding='VALID')
             end_points[end_point] = net
-            end_point = 'block9'
+            end_point = 'block11'
             with tf.variable_scope(end_point):
                 net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
                 net = slim.conv2d(net, 256, [3, 3], scope='conv3x3', padding='VALID')
