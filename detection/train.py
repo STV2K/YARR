@@ -10,9 +10,9 @@ from nets import STVNet
 
 tf.logging.set_verbosity(tf.logging.INFO)
 slim = tf.contrib.slim
-os.environ["CUDA_VISIBLE_DEVICES"] = "3,2" # config.FLAGS.gpu_list
+os.environ["CUDA_VISIBLE_DEVICES"] = "1" # config.FLAGS.gpu_list
 model_dir='/home/hcxiao/Codes/YARR/detection/models/'
-save_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet4/'
+save_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet5/'
 model_name='VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt' # .data-00000-of-00001'
 
 img_width = config.FLAGS.input_size_width
@@ -112,7 +112,11 @@ def train():
                                                    staircase=True,
                                                    name='exponential_decay_learning_rate')
         tf.summary.scalar("learning_rate", learning_rate)
-        optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+        #optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+        optimizer = tf.train.AdamOptimizer(learning_rate,
+                                           beta1=0.9,
+                                           beta2=0.999,
+                                           epsilon=1.0)
 
         train_op = optimizer.minimize(total_loss, global_step=global_step)
         tf.summary.scalar("pos_loss", pos_loss)
@@ -157,7 +161,7 @@ def train():
                 tf.logging.info('%s: Step %d: NegtiveLoss = %.2f' % (datetime.now(), step, nloss))#sum_nloss / (batch_size - flag)))
                 tf.logging.info('%s: Step %d: LocalizationLoss = %.2f' % (datetime.now(), step, lcloss))#sum_lcloss / (batch_size - flag)))
 
-                if step % 200 == 0:
+                if step % 100 == 0:
                     saver.save(sess, save_dir + 'stvnet.ckpt', global_step=step)
                 step += 1
 

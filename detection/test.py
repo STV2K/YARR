@@ -10,10 +10,10 @@ from nets import STVNet
 from PIL import Image
 import matplotlib.pyplot as plt
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_test/'
-img_name = 'STV2K_ts_0073.jpg'
+img_name = 'STV2K_ts_0024.jpg'
 
 img_width = config.FLAGS.input_size_width
 img_height = config.FLAGS.input_size_height
@@ -105,7 +105,7 @@ def test(img_name):
             # fig = plt.figure(figsize=(12, 12))
             # plt.imshow(img)
             result_img = Image.fromarray(np.uint8(img))
-            result_img.save('results/result-v3-' + img_name)
+            result_img.save('results/result-v5-7700-' + img_name)
             print('positive loss: ', p_loss)
             print('negtive loss: ', n_loss)
             print('localisation loss: ', lc_loss)
@@ -115,7 +115,7 @@ def bboxes_draw_on_img(img, scores, bboxes, color, thickness=5):
     shape = img.shape
     for i in range(len(bboxes)):
         if(scores[i] > 0.5):
-            color = (255, 255, 255)
+            color = (255, 255, 0)
         else:
             color = (31, 119, 180)
         bbox = bboxes[i]
