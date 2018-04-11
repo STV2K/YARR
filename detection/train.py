@@ -99,6 +99,9 @@ def train():
         anchors = STVNet.ssd_anchors_all_layers()
         predictions, localisations, logits, end_points = STVNet.model(inputs)
         gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_batch_encode(label, bboxes, anchors, config.FLAGS.batch_size)
+        #print('gclasses: ', gclasses)
+        #print('glocal: ', glocal)
+        #print('gscores: ', gscores)
 
         pos_loss, neg_loss, loc_loss, regular_loss= STVNet.ssd_losses(logits, localisations, gclasses, glocal, gscores)
         total_loss = pos_loss + neg_loss + loc_loss + regular_loss
@@ -139,7 +142,7 @@ def train():
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
 
-            summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
+#            summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
             batch_size = config.FLAGS.batch_size
 
             step = 1
@@ -150,12 +153,17 @@ def train():
                     sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
 
                 b_labels, b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
+                print(b_labels.shape)
+                print(b_bboxes.shape)
                     
-                _, ploss, nloss, lcloss, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss,  merged],
+                _, ploss, nloss, lcloss, gc, gl, gs, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, gclasses, glocal, gscores, merged],
                                                                 feed_dict={inputs: b_image, label: b_labels, bboxes: b_bboxes})
 
-                summary_writer.add_summary(summary_str, step)
-                summary_writer.flush()
+#                summary_writer.add_summary(summary_str, step)
+#                summary_writer.flush()
+                #print(gc[5])
+                #print(gl[5])
+                #print(gs[5])
 
                 tf.logging.info('%s: Step %d: PositiveLoss = %.2f' % (datetime.now(), step, ploss))#sum_ploss / (batch_size - flag)))
                 tf.logging.info('%s: Step %d: NegtiveLoss = %.2f' % (datetime.now(), step, nloss))#sum_nloss / (batch_size - flag)))
@@ -164,6 +172,8 @@ def train():
                 if step % 100 == 0:
                     saver.save(sess, save_dir + 'stvnet.ckpt', global_step=step)
                 step += 1
+
+                while_flag = False
 
 
             coord.request_stop()

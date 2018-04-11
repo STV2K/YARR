@@ -560,9 +560,11 @@ def tf_ssd_bboxes_batch_encode(labels,
                 layer_labels = tf.stack(layer_labels)
                 layer_localizations = tf.stack(layer_localizations)
                 layer_scores = tf.stack(layer_scores)
+
                 target_labels.append(layer_labels)
                 target_localizations.append(layer_localizations)
                 target_scores.append(layer_scores)
+
         return target_labels, target_localizations, target_scores
 
 # encode gt for one layer
@@ -739,10 +741,19 @@ def ssd_losses(logits, localisations,
         glocalisations = tf.concat(fglocalisations, axis=0)
         dtype = logits.dtype
 
+        print('logits: ', logits)
+        print('localisations: ', localisations)
+        print('gclasses: ', gclasses)
+        print('glocalisations: ', glocalisations)
+        print('gscores: ', gscores)
+
         # Compute positive matching mask...
         pmask = gscores > match_threshold    # gt boxes > threshold     true or false
         fpmask = tf.cast(pmask, dtype)       # float version of positive gt boxes
         n_positives = tf.reduce_sum(fpmask)  # number of positive gt boxes
+
+        if n_positive == 0:
+            return 0, 0, 0, 0
 
         # Hard negative mining...
         no_classes = tf.cast(pmask, tf.int32)         # int version of positive gt boxes
@@ -772,7 +783,7 @@ def ssd_losses(logits, localisations,
             loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
                                                                   labels=gclasses)
             #ret_loss1 = loss
-            loss = tf.div(tf.reduce_sum(loss * fpmask), n_positives, name='value') #batch_size, name='value')
+            loss = tf.div(tf.reduce_sum(loss * fpmask), 1, name='value') #batch_size, name='value')
             #ret_loss2 = loss
             tf.losses.add_loss(loss)
 
