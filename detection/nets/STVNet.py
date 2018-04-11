@@ -135,7 +135,7 @@ def model(images,
             #                       scope='resnet_v1_50')
             
             # Original VGG-16 blocks.
-            net = slim.repeat(inputs, 2, slim.conv2d, 64, [3, 3], scope='conv1')
+            net = slim.repeat(images, 2, slim.conv2d, 64, [3, 3], scope='conv1')
             end_points['block1'] = net
             net = slim.max_pool2d(net, [2, 2], scope='pool1')
             # Block 2.
@@ -764,18 +764,18 @@ def ssd_losses(logits, localisations,
         glocalisations = tf.concat(fglocalisations, axis=0)
         dtype = logits.dtype
 
-        print('logits: ', logits)
-        print('localisations: ', localisations)
-        print('gclasses: ', gclasses)
-        print('glocalisations: ', glocalisations)
-        print('gscores: ', gscores)
+        #print('logits: ', logits)
+        #print('localisations: ', localisations)
+        #print('gclasses: ', gclasses)
+        #print('glocalisations: ', glocalisations)
+        #print('gscores: ', gscores)
 
         # Compute positive matching mask...
         pmask = gscores > match_threshold    # gt boxes > threshold     true or false
         fpmask = tf.cast(pmask, dtype)       # float version of positive gt boxes
         n_positives = tf.reduce_sum(fpmask)  # number of positive gt boxes
 
-        if n_positive == 0:
+        if n_positives == 0:
             return 0, 0, 0, 0
 
         # Hard negative mining...
@@ -806,7 +806,7 @@ def ssd_losses(logits, localisations,
             loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
                                                                   labels=gclasses)
             #ret_loss1 = loss
-            loss = tf.div(tf.reduce_sum(loss * fpmask), 1, name='value') #batch_size, name='value')
+            loss = tf.div(tf.reduce_sum(loss * fpmask), batch_size, name='value')
             #ret_loss2 = loss
             tf.losses.add_loss(loss)
 
@@ -815,7 +815,7 @@ def ssd_losses(logits, localisations,
         with tf.name_scope('cross_entropy_neg'):
             loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
                                                                   labels=no_classes)
-            loss = tf.div(tf.reduce_sum(loss * fnmask), n_positives, name='value') #batch_size, name='value')
+            loss = tf.div(tf.reduce_sum(loss * fnmask), batch_size, name='value')
             tf.losses.add_loss(loss)
 
             neg_loss = loss
@@ -825,7 +825,7 @@ def ssd_losses(logits, localisations,
             # Weights Tensor: positive mask + random negative.
             weights = tf.expand_dims(alpha * fpmask, axis=-1)
             loss = custom_layers.abs_smooth(localisations - glocalisations)
-            loss = tf.div(tf.reduce_sum(loss * weights), n_positives, name='value') #batch_size, name='value')
+            loss = tf.div(tf.reduce_sum(loss * weights), batch_size, name='value') #n_positives, name='value') 
             tf.losses.add_loss(loss)
 
             loc_loss = loss

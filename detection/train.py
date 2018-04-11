@@ -10,9 +10,9 @@ from nets import STVNet
 
 tf.logging.set_verbosity(tf.logging.INFO)
 slim = tf.contrib.slim
-os.environ["CUDA_VISIBLE_DEVICES"] = "1" # config.FLAGS.gpu_list
+os.environ["CUDA_VISIBLE_DEVICES"] = "3,2" # config.FLAGS.gpu_list
 model_dir='/home/hcxiao/Codes/YARR/detection/models/'
-save_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet5/'
+save_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet-vgg/'
 model_name='VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt' # .data-00000-of-00001'
 
 img_width = config.FLAGS.input_size_width
@@ -142,7 +142,7 @@ def train():
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
 
-#            summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
+            summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
             batch_size = config.FLAGS.batch_size
 
             step = 1
@@ -159,8 +159,8 @@ def train():
                 _, ploss, nloss, lcloss, gc, gl, gs, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, gclasses, glocal, gscores, merged],
                                                                 feed_dict={inputs: b_image, label: b_labels, bboxes: b_bboxes})
 
-#                summary_writer.add_summary(summary_str, step)
-#                summary_writer.flush()
+                summary_writer.add_summary(summary_str, step)
+                summary_writer.flush()
                 #print(gc[5])
                 #print(gl[5])
                 #print(gs[5])
@@ -173,7 +173,7 @@ def train():
                     saver.save(sess, save_dir + 'stvnet.ckpt', global_step=step)
                 step += 1
 
-                while_flag = False
+#                while_flag = False
 
 
             coord.request_stop()
