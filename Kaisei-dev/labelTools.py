@@ -17,7 +17,7 @@ class LabelReader:
     def read_stv2k_label(label_path):
         """
         Load the new STV2k label file into arrays.
-        @return *xAxis*, *yAxis* and *content*.
+        @return *x_axis*, *y_axis* and *content*.
 
         The label file ought to be encoded with GB2312 and organized as:
             [Line 1] x1, y1, x2, y2, x3, y3, x4, y4 (all integers with origin on the top left)

@@ -14,7 +14,7 @@ Using PyTorch.
 
 ## Roadmap
 #### Feature Extractor: ResNet & DeConv (11 Apr) - Done & Executable, 11 Apr
-#### Det Branch: EAST Trans and CUDA Enable Check (12 Apr)
+#### Det Branch: EAST Trans, visualize layers and CUDA Enable Check (12 Apr)
 #### Dataloader & Helper Func (13 Apr)
 #### Rec Branch: CRNN Trans (14 Apr)
 #### RoI Op, Loss Design and Optimizer(15 Apr)

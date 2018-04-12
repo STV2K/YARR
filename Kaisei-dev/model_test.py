@@ -29,7 +29,7 @@ def feature_sharing_block_test():
 
 def main():
     # print(res50block_test().size())
-    print(feature_sharing_block_test().size())
+    print("Decov model out: " + str(feature_sharing_block_test().size()))
 
 
 if __name__ == '__main__':
