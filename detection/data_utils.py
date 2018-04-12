@@ -5,6 +5,7 @@ import cv2
 import random
 import numpy as np
 import tensorflow as tf
+import tf_extended as tfe
 import config_utils as config
 
 
@@ -13,6 +14,101 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 img_width = config.FLAGS.input_size_width
 img_height = config.FLAGS.input_size_height
+
+
+def resize_image(image, size,
+                 method=tf.image.ResizeMethod.BILINEAR,
+                 align_corners=False):
+    """Resize an image and bounding boxes.
+    """
+    # Resize image.
+    with tf.name_scope('resize_image'):
+        height, width, channels = _ImageDimensions(image)
+        image = tf.expand_dims(image, 0)
+        image = tf.image.resize_images(image, size,
+                                       method, align_corners)
+        image = tf.reshape(image, tf.stack([size[0], size[1], channels]))
+        return image
+
+def distorted_bounding_box_crop(image,
+                                labels,
+                                bboxes,
+                                min_object_covered=0.3,
+                                aspect_ratio_range=(0.9, 1.1),
+                                area_range=(0.1, 1.0),
+                                max_attempts=200,
+                                clip_bboxes=True,
+                                scope=None):
+    """Generates cropped_image using a one of the bboxes randomly distorted.
+
+    See `tf.image.sample_distorted_bounding_box` for more documentation.
+
+    Args:
+        image: 3-D Tensor of image (it will be converted to floats in [0, 1]).
+        bbox: 3-D float Tensor of bounding boxes arranged [1, num_boxes, coords]
+            where each coordinate is [0, 1) and the coordinates are arranged
+            as [ymin, xmin, ymax, xmax]. If num_boxes is 0 then it would use the whole
+            image.
+        min_object_covered: An optional `float`. Defaults to `0.1`. The cropped
+            area of the image must contain at least this fraction of any bounding box
+            supplied.
+        aspect_ratio_range: An optional list of `floats`. The cropped area of the
+            image must have an aspect ratio = width / height within this range.
+        area_range: An optional list of `floats`. The cropped area of the image
+            must contain a fraction of the supplied image within in this range.
+        max_attempts: An optional `int`. Number of attempts at generating a cropped
+            region of the image of the specified constraints. After `max_attempts`
+            failures, return the entire image.
+        scope: Optional scope for name_scope.
+    Returns:
+        A tuple, a 3-D Tensor cropped_image and the distorted bbox
+    """
+    with tf.name_scope(scope, 'distorted_bounding_box_crop', [image, bboxes]):
+        # Each bounding box has shape [1, num_boxes, box coords] and
+        # the coordinates are ordered [ymin, xmin, ymax, xmax].
+        bbox_begin, bbox_size, distort_bbox = tf.image.sample_distorted_bounding_box(
+                tf.shape(image),
+                bounding_boxes=tf.expand_dims(bboxes, 0),
+                min_object_covered=min_object_covered,
+                aspect_ratio_range=aspect_ratio_range,
+                area_range=area_range,
+                max_attempts=max_attempts,
+                use_image_if_no_bounding_boxes=True)
+        distort_bbox = distort_bbox[0, 0]
+
+        # Crop the image to the specified bounding box.
+        cropped_image = tf.slice(image, bbox_begin, bbox_size)
+        # Restore the shape since the dynamic slice loses 3rd dimension.
+        cropped_image.set_shape([None, None, 3])
+
+        # Update bounding boxes: resize and filter out.
+        bboxes = tfe.bboxes_resize(distort_bbox, bboxes)
+        labels, bboxes = tfe.bboxes_filter_overlap(labels, bboxes,
+                                                   threshold=BBOX_CROP_OVERLAP,
+                                                   assign_negative=False)
+        return cropped_image, labels, bboxes, distort_bbox
+
+def get_processed_imgs(images,
+                       labels,
+                       bboxes):
+    ret_images = []
+    ret_labels = []
+    ret_bboxes = []
+    for i im range(len(labels)):
+        cropped_image, cropped_labels, cropped_bboxes = distorted_bounding_box_crop(images[0], labels[0], bboxes[0],
+                                                                                    min_object_covered=0.25,
+                                                                                    aspect_ratio_range=(0.6, 1.67))
+        cropped_image = resize_image(cropped_image, (300,300),
+                                     method=tf.image.ResizeMethod.BILINEAR,
+                                     align_corners=False)
+        ret_images.append(cropped_image)
+        ret_labels.append(cropped_labels)
+        ret_bboxes.append(cropped_bboxes)
+        
+    ret_images = np.array(ret_images)
+    ret_labels = np.array(ret_labels)
+    ret_bboxes = np.array(ret_bboxes)
+
 
 def int64_feature(value):
     """Wrapper for inserting int64 features into Example proto.
