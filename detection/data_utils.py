@@ -94,7 +94,7 @@ def get_processed_imgs(images,
     ret_images = []
     ret_labels = []
     ret_bboxes = []
-    for i im range(len(labels)):
+    for i in range(len(labels)):
         cropped_image, cropped_labels, cropped_bboxes = distorted_bounding_box_crop(images[0], labels[0], bboxes[0],
                                                                                     min_object_covered=0.25,
                                                                                     aspect_ratio_range=(0.6, 1.67))

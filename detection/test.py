@@ -10,10 +10,11 @@ from nets import STVNet
 from PIL import Image
 import matplotlib.pyplot as plt
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_test/'
-img_name = 'STV2K_ts_0339.jpg'
+#ICDAR_Path='/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_test_images/'
+img_name = 'STV2K_ts_0413.jpg' #'img_243.jpg'
 
 img_width = config.FLAGS.input_size_width
 img_height = config.FLAGS.input_size_height
@@ -57,7 +58,7 @@ def test(img_name):
         # STVNet.redefine_params(img_width, img_height)
 
         im, ori_width, ori_height = get_image(STV2K_Path + img_name)
-        polys,_ = data_utils.load_annotation(STV2K_Path + img_name.replace('.jpg', '.txt'))
+        #polys,_ = data_utils.load_annotation(STV2K_Path + img_name.replace('.jpg', '.txt'))
 
         label = tf.placeholder(tf.int64, shape=[None], name='labels')
         bboxes = tf.placeholder(tf.float32, shape=[None, 4], name='bboxes')
@@ -66,8 +67,8 @@ def test(img_name):
 
         anchors = STVNet.ssd_anchors_all_layers()
         predictions, localisations, logits, end_points = STVNet.model(inputs)
-        gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_encode(label, bboxes, anchors)
-        pos_loss, neg_loss, loc_loss, _ = STVNet.ssd_losses(logits, localisations, gclasses, glocal, gscores)
+        #gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_encode(label, bboxes, anchors)
+        #pos_loss, neg_loss, loc_loss, _ = STVNet.ssd_losses(logits, localisations, gclasses, glocal, gscores)
 
         # with tf.device('/device:CPU:0'):
         pre_locals = STVNet.tf_ssd_bboxes_decode(localisations, anchors, scope='bboxes_decode')
@@ -81,7 +82,9 @@ def test(img_name):
         saver = tf.train.Saver()
         # gpu_fraction = 0.5
         # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=gpu_fraction, allow_growth=True)
-        with tf.Session() as sess: # config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
+        tf_config = tf.ConfigProto()
+        tf_config.gpu_options.allow_growth = True
+        with tf.Session(config=tf_config) as sess:
             sess.run(tf.global_variables_initializer())
             sess.run(tf.local_variables_initializer())
             
@@ -90,13 +93,13 @@ def test(img_name):
             else:
                 saver.restore(sess, model_dir + 'stvnet.ckpt-18100')
 
-            gt_bboxes = convert_poly_to_bbox(polys, ori_width, ori_height)
-            gt_labels = [1 for i in range(len(gt_bboxes))]
+            #gt_bboxes = convert_poly_to_bbox(polys, ori_width, ori_height)
+            #gt_labels = [1 for i in range(len(gt_bboxes))]
 
-            pre_s, pre_box, p_loss, n_loss, lc_loss = sess.run([pre_scores, pre_bboxes, pos_loss, neg_loss, loc_loss],
-                                                               feed_dict={inputs: [im],
-                                                                          label: gt_labels,
-                                                                          bboxes: gt_bboxes})
+            pre_s, pre_box = sess.run([pre_scores, pre_bboxes],
+                                      feed_dict={inputs: [im]})
+                                      #label: gt_labels,
+                                      #bboxes: gt_bboxes})
             img = Image.open(STV2K_Path + img_name)
             img = np.array(img)
 
@@ -105,10 +108,10 @@ def test(img_name):
             # fig = plt.figure(figsize=(12, 12))
             # plt.imshow(img)
             result_img = Image.fromarray(np.uint8(img))
-            result_img.save('results/result-vgg-' + img_name)
-            print('positive loss: ', p_loss)
-            print('negtive loss: ', n_loss)
-            print('localisation loss: ', lc_loss)
+            result_img.save('results/result-vgg-icdar-8000-' + img_name)
+            #print('positive loss: ', p_loss)
+            #print('negtive loss: ', n_loss)
+            #print('localisation loss: ', lc_loss)
 
         
 def bboxes_draw_on_img(img, scores, bboxes, color, thickness=5):
