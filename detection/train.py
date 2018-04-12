@@ -145,7 +145,7 @@ def train():
             summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
             batch_size = config.FLAGS.batch_size
 
-            step = 1
+            step = 301
             while_flag = True
             while(while_flag):
 
@@ -153,8 +153,8 @@ def train():
                     sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
 
                 b_labels, b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
-                print(b_labels.shape)
-                print(b_bboxes.shape)
+                #print(b_labels.shape)
+                #print(b_bboxes.shape)
                     
                 _, ploss, nloss, lcloss, gc, gl, gs, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, gclasses, glocal, gscores, merged],
                                                                 feed_dict={inputs: b_image, label: b_labels, bboxes: b_bboxes})
