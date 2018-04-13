@@ -5,11 +5,12 @@
 # import torch as th
 # import torchvision as tv
 
+import math
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-import math
 import torch.utils.model_zoo as model_zoo
+
 from layers import *
 
 
@@ -22,16 +23,6 @@ model_urls = {
     'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
     'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
 }
-
-
-def feature_sharing_block(inp):
-    resnet_part = resnet50_block()
-    resnet_out = resnet_part(inp)
-    # for i in range(len(resnet_part.residual_layers)):
-    #     print("RL - " + str(resnet_part.residual_layers[i].size()))
-    print("ResNet out: " + str(resnet_out.size()))
-    deconv_part = deconv_block(resnet_part.residual_layers)
-    return deconv_part(resnet_out)
 
 
 class BasicBlock(nn.Module):
@@ -115,7 +106,7 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
     """
-    Resnet adopted from torchvision.
+    ResNet adopted from torchvision.
     """
     def __init__(self, block, layers, num_classes=1000):
         self.inplanes = 64
@@ -279,30 +270,31 @@ class DeconvByBilinearUpsampling(nn.Module):
     thus this class comes with NO GUARANTEE.
     """
 
-    def __init__(self, residual_layers, out_channel=256, stride=1):
+    def __init__(self, out_channel=256, stride=1):
         super().__init__()
         self.out_channel = out_channel
-        self.conv3 = conv3x3(out_channel, out_channel)
+        # self.conv3 = conv3x3(out_channel, out_channel)
         self.bilinear_upsampling = bilinear_upsampling_2x()
-        self.residual_layers = residual_layers
-        self.repeat = len(residual_layers)
 
-    def forward(self, x):
-        if x.size()[1] != self.out_channel:
-            x = conv1x1(x.size()[1], self.out_channel)(x)
-        for i in range(self.repeat):
+    def forward(self, x, residual_layers):
+        repeat = len(residual_layers)
+        # if x.size()[1] != self.out_channel:
+        #     x = conv1x1(x.size()[1], self.out_channel)(x)
+        for i in range(repeat):
             x = self.bilinear_upsampling(x)
             # Adjust residual channels
-            residual = self.residual_layers[- (i + 1)]
-            residual = conv1x1(residual.size()[1], self.out_channel)(residual)
-            # Pad residuals with odd image h/w
-            if x.size()[2] > residual.size()[2]:
-                residual = nn.ZeroPad2d((0, 0, x.size()[2] - residual.size()[2], 0))(residual)
-            if x.size()[3] > residual.size()[3]:
-                residual = nn.ZeroPad2d((0, 0, 0, x.size()[3] - residual.size()[3]))(residual)
-            # FPN said they perform element-wise addition, while FOTS uses the word "concatenate"
-            x = torch.add(x, residual)
-            x = self.conv3(x)
+            residual = residual_layers[- (i + 1)]
+            # Pad residuals with odd image h/w - no need since images are resized to resolution of 32-multiples
+            # if x.size()[2] > residual.size()[2]:
+            #     residual = nn.ZeroPad2d((0, 0, x.size()[2] - residual.size()[2], 0))(residual)
+            # if x.size()[3] > residual.size()[3]:
+            #     residual = nn.ZeroPad2d((0, 0, 0, x.size()[3] - residual.size()[3]))(residual)
+            # # FPN said they perform element-wise addition, while FOTS uses the word "concatenate"
+            # We adopt concatenating of EAST style.
+            # x = torch.add(x, residual)
+            x = torch.cat((x, residual), 1)
+            x = conv1x1(x.size()[1], x.size()[1] // 3)(x)
+            x = conv3x3(x.size()[1], x.size()[1])(x)
         return x
 
 
@@ -317,8 +309,8 @@ def resnet50_block():
 #     return DeconvByBilinearUpsampling(in_planes, residual_layers, repeat, channel_shrunk_factor)
 
 
-def deconv_block(residual_layers):
-    return DeconvByBilinearUpsampling(residual_layers)
+def deconv_block():
+    return DeconvByBilinearUpsampling()
 
 
 # The following methods are adopted from torchvision codes.
