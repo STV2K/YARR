@@ -10,9 +10,9 @@ from nets import STVNet
 
 tf.logging.set_verbosity(tf.logging.INFO)
 slim = tf.contrib.slim
-os.environ["CUDA_VISIBLE_DEVICES"] = "3,2" # config.FLAGS.gpu_list
+os.environ["CUDA_VISIBLE_DEVICES"] = "3" # config.FLAGS.gpu_list
 model_dir='/home/hcxiao/Codes/YARR/detection/models/'
-save_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet-vgg/'
+save_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet-offset/'
 model_name='VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt' # .data-00000-of-00001'
 
 img_width = config.FLAGS.input_size_width
@@ -99,6 +99,8 @@ def train():
         anchors = STVNet.ssd_anchors_all_layers()
         predictions, localisations, logits, end_points = STVNet.model(inputs)
         gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_batch_encode(label, bboxes, anchors, config.FLAGS.batch_size)
+        #print('localisations: ', localisations)
+        #print('logits: ', logits)
         #print('gclasses: ', gclasses)
         #print('glocal: ', glocal)
         #print('gscores: ', gscores)
@@ -142,38 +144,38 @@ def train():
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
 
-#            summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
+            summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
             batch_size = config.FLAGS.batch_size
 
-            step = 301
+            step = 1
             while_flag = True
             while(while_flag):
 
-#                b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
-#                    sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
+                b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
+                    sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
 
-#                b_labels, b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
+                b_labels, b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
                 #print(b_labels.shape)
                 #print(b_bboxes.shape)
                     
-#                _, ploss, nloss, lcloss, gc, gl, gs, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, gclasses, glocal, gscores, merged],
-#                                                                feed_dict={inputs: b_image, label: b_labels, bboxes: b_bboxes})
+                _, ploss, nloss, lcloss, gc, gl, gs, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, gclasses, glocal, gscores, merged],
+                                                                feed_dict={inputs: b_image, label: b_labels, bboxes: b_bboxes})
 
-#                summary_writer.add_summary(summary_str, step)
-#                summary_writer.flush()
+                summary_writer.add_summary(summary_str, step)
+                summary_writer.flush()
                 #print(gc[5])
                 #print(gl[5])
                 #print(gs[5])
 
-#                tf.logging.info('%s: Step %d: PositiveLoss = %.2f' % (datetime.now(), step, ploss))#sum_ploss / (batch_size - flag)))
-#                tf.logging.info('%s: Step %d: NegtiveLoss = %.2f' % (datetime.now(), step, nloss))#sum_nloss / (batch_size - flag)))
-#                tf.logging.info('%s: Step %d: LocalizationLoss = %.2f' % (datetime.now(), step, lcloss))#sum_lcloss / (batch_size - flag)))
+                tf.logging.info('%s: Step %d: PositiveLoss = %.2f' % (datetime.now(), step, ploss))#sum_ploss / (batch_size - flag)))
+                tf.logging.info('%s: Step %d: NegtiveLoss = %.2f' % (datetime.now(), step, nloss))#sum_nloss / (batch_size - flag)))
+                tf.logging.info('%s: Step %d: LocalizationLoss = %.2f' % (datetime.now(), step, lcloss))#sum_lcloss / (batch_size - flag)))
 
                 if step % 100 == 0:
                     saver.save(sess, save_dir + 'stvnet.ckpt', global_step=step)
                 step += 1
 
-                while_flag = False
+#                while_flag = False
 
 
             coord.request_stop()

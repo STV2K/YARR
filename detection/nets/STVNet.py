@@ -221,6 +221,9 @@ def ssd_multibox_layer(inputs,
     # Number of anchors.
     num_anchors = len(sizes) + len(ratios)
 
+    # plus offset default boxes
+    num_anchors *= 2
+
     # Location.
     num_loc_pred = num_anchors * 4
     loc_pred = slim.conv2d(net, num_loc_pred, kernel, activation_fn=None,
@@ -576,29 +579,23 @@ def tf_ssd_bboxes_batch_encode(labels,
                                                    num_classes, # no_annotation_label,
                                                    ignore_threshold,
                                                    prior_scaling, dtype)
-                    layer_labels.append(t_labels)
-                    layer_localizations.append(t_loc)
-                    layer_scores.append(t_scores)
-
-                    print(t_labels)
-                    print(t_loc)
-                    print(t_scores)
 
                     y, x, h, w = anchors_layer
                     y = y + 0.5
                     anchors_layer = y, x, h, w
+
                     t_labels_offset, t_loc_offset, t_scores_offset = \
                         tf_ssd_bboxes_encode_layer(labels[j], bboxes[j], anchors_layer,
                                                    num_classes, # no_annotation_label,
                                                    ignore_threshold,
                                                    prior_scaling, dtype)
 
-                    # print(t_labels_offset)
-                    # print(t_loc_offset)
-                    # print(t_scores_offset)
-                    # layer_labels.append(t_labels)
-                    # layer_localizations.append(t_loc)
-                    # layer_scores.append(t_scores)
+                    total_label = tf.concat([t_labels, t_labels_offset], axis=2)
+                    total_loc = tf.concat([t_loc, t_loc_offset], axis=2)
+                    total_scores = tf.concat([t_scores, t_scores_offset], axis=2)
+                    layer_labels.append(total_label) #t_labels)
+                    layer_localizations.append(total_loc) #t_loc)
+                    layer_scores.append(total_scores) #t_scores)
 
                 layer_labels = tf.stack(layer_labels)
                 layer_localizations = tf.stack(layer_localizations)
@@ -608,6 +605,9 @@ def tf_ssd_bboxes_batch_encode(labels,
                 target_localizations.append(layer_localizations)
                 target_scores.append(layer_scores)
 
+        #print(target_labels)
+        #print(target_localizations)
+        #print(target_scores)
         return target_labels, target_localizations, target_scores
 
 # encode gt for one layer
