@@ -580,6 +580,26 @@ def tf_ssd_bboxes_batch_encode(labels,
                     layer_localizations.append(t_loc)
                     layer_scores.append(t_scores)
 
+                    print(t_labels)
+                    print(t_loc)
+                    print(t_scores)
+
+                    y, x, h, w = anchors_layer
+                    y = y + 0.5
+                    anchors_layer = y, x, h, w
+                    t_labels_offset, t_loc_offset, t_scores_offset = \
+                        tf_ssd_bboxes_encode_layer(labels[j], bboxes[j], anchors_layer,
+                                                   num_classes, # no_annotation_label,
+                                                   ignore_threshold,
+                                                   prior_scaling, dtype)
+
+                    # print(t_labels_offset)
+                    # print(t_loc_offset)
+                    # print(t_scores_offset)
+                    # layer_labels.append(t_labels)
+                    # layer_localizations.append(t_loc)
+                    # layer_scores.append(t_scores)
+
                 layer_labels = tf.stack(layer_labels)
                 layer_localizations = tf.stack(layer_localizations)
                 layer_scores = tf.stack(layer_scores)
