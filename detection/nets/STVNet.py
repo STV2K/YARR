@@ -564,11 +564,20 @@ def tf_ssd_bboxes_batch_encode(labels,
       (target_labels, target_localizations, target_scores):
         Each element is a list of target Tensors.
     """
+    steps = default_params.anchor_steps
+    img_shape = default_params.img_shape
+
     with tf.name_scope(scope):
         target_labels = []
         target_localizations = []
         target_scores = []
         for i, anchors_layer in enumerate(anchors):
+            y, x, h, w = anchors_layer
+            y_offset = y + 0.5 * steps[i] / img_shape[0]
+            mask = tf.logical_not(y_offset > 1.0)
+            y_offset = tf.where(mask, y_offset, y)
+            anchors_layer_offset = y_offset, x, h, w
+
             with tf.name_scope('bboxes_encode_block_%i' % i):
                 layer_labels = []
                 layer_localizations = []
@@ -580,12 +589,8 @@ def tf_ssd_bboxes_batch_encode(labels,
                                                    ignore_threshold,
                                                    prior_scaling, dtype)
 
-                    y, x, h, w = anchors_layer
-                    y = y + 0.5
-                    anchors_layer = y, x, h, w
-
                     t_labels_offset, t_loc_offset, t_scores_offset = \
-                        tf_ssd_bboxes_encode_layer(labels[j], bboxes[j], anchors_layer,
+                        tf_ssd_bboxes_encode_layer(labels[j], bboxes[j], anchors_layer_offset,
                                                    num_classes, # no_annotation_label,
                                                    ignore_threshold,
                                                    prior_scaling, dtype)
