@@ -650,13 +650,19 @@ def tf_ssd_bboxes_encode_layer(labels,
 
     if anchors_layer_offset:
       num_anchors *= 2
-      yref_off, _, _, _ = anchors_layer_offset
+      yref_off, xref_off, _, _ = anchors_layer_offset
       ymin_off = yref_off - href / 2.
       ymax_off = yref_off + href / 2.
-      ymin = tf.concat([ymin, ymin_off], aixs=-1)
+      yref = tf.concat([ymin + href / 2., ymin_off + href / 2.], axis=-1)
+      xref = tf.concat([xmin + href / 2., xmin + href / 2.], axis=-1)
+
+      ymin = tf.concat([ymin, ymin_off], axis=-1)
       ymax = tf.concat([ymax, ymax_off], axis=-1)
       xmin = tf.concat([xmin, xmin], axis=-1)
       xmax = tf.concat([xmax, xmax], axis=-1)
+
+      href = tf.concat([href, href], axis=-1)
+      wref = tf.concat([wref, wref], axis=-1)
       vol_anchors = (xmax - xmin) * (ymax - ymin)  # size:(height, width, href.size * 2)
 
     # Initialize tensors...
