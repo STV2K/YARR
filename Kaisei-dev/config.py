@@ -5,6 +5,7 @@ __sample_path_2__ = "../testcases/STV2K_ts_0339.jpg"
 
 training_data_path = "/Users/dementia/Desktop/Research/Datasets/St2kNew/stv2k_train"
 test_data_path = "/Users/dementia/Desktop/Research/Datasets/St2kNew/stv2k_test"
+training_data_path_z440 = "/home/xhuang/Research/Datasets/STV2K_New/stv2k_train"
 
 # Constants
 __STV2KImageWidth = 2448
