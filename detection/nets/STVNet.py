@@ -586,21 +586,22 @@ def tf_ssd_bboxes_batch_encode(labels,
                     t_labels, t_loc, t_scores = \
                         tf_ssd_bboxes_encode_layer(labels[j], bboxes[j], anchors_layer,
                                                    num_classes, # no_annotation_label,
+                                                   anchors_layer_offset,
                                                    ignore_threshold,
                                                    prior_scaling, dtype)
 
-                    t_labels_offset, t_loc_offset, t_scores_offset = \
-                        tf_ssd_bboxes_encode_layer(labels[j], bboxes[j], anchors_layer_offset,
-                                                   num_classes, # no_annotation_label,
-                                                   ignore_threshold,
-                                                   prior_scaling, dtype)
+                    # t_labels_offset, t_loc_offset, t_scores_offset = \
+                    #     tf_ssd_bboxes_encode_layer(labels[j], bboxes[j], anchors_layer_offset,
+                    #                                num_classes, # no_annotation_label,
+                    #                                ignore_threshold,
+                    #                                prior_scaling, dtype)
 
-                    total_label = tf.concat([t_labels, t_labels_offset], axis=2)
-                    total_loc = tf.concat([t_loc, t_loc_offset], axis=2)
-                    total_scores = tf.concat([t_scores, t_scores_offset], axis=2)
-                    layer_labels.append(total_label) #t_labels)
-                    layer_localizations.append(total_loc) #t_loc)
-                    layer_scores.append(total_scores) #t_scores)
+                    # total_label = tf.concat([t_labels, t_labels_offset], axis=2)
+                    # total_loc = tf.concat([t_loc, t_loc_offset], axis=2)
+                    # total_scores = tf.concat([t_scores, t_scores_offset], axis=2)
+                    layer_labels.append(t_labels)
+                    layer_localizations.append(t_loc)
+                    layer_scores.append(t_scores)
 
                 layer_labels = tf.stack(layer_labels)
                 layer_localizations = tf.stack(layer_localizations)
@@ -620,6 +621,7 @@ def tf_ssd_bboxes_encode_layer(labels,
                                bboxes,
                                anchors_layer,
                                num_classes,
+                               anchors_layer_offset=None,
                                # no_annotation_label,
                                ignore_threshold=0.5,
                                prior_scaling=[0.1, 0.1, 0.2, 0.2],
@@ -643,10 +645,22 @@ def tf_ssd_bboxes_encode_layer(labels,
     xmin = xref - wref / 2.
     ymax = yref + href / 2.
     xmax = xref + wref / 2.
-    vol_anchors = (xmax - xmin) * (ymax - ymin)
+    vol_anchors = (xmax - xmin) * (ymax - ymin)    # size:(height, width, href.size)
+    num_anchors = href.size
+
+    if anchors_layer_offset:
+      num_anchors *= 2
+      yref_off, _, _, _ = anchors_layer_offset
+      ymin_off = yref_off - href / 2.
+      ymax_off = yref_off + href / 2.
+      ymin = tf.concat([ymin, ymin_off], aixs=-1)
+      ymax = tf.concat([ymax, ymax_off], axis=-1)
+      xmin = tf.concat([xmin, xmin], axis=-1)
+      xmax = tf.concat([xmax, xmax], axis=-1)
+      vol_anchors = (xmax - xmin) * (ymax - ymin)  # size:(height, width, href.size * 2)
 
     # Initialize tensors...
-    shape = (yref.shape[0], yref.shape[1], href.size)
+    shape = (yref.shape[0], yref.shape[1], num_anchors) # shape:(height, width, num_anchors)
     feat_labels = tf.zeros(shape, dtype=tf.int64)
     feat_scores = tf.zeros(shape, dtype=dtype)
 
