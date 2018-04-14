@@ -11,13 +11,17 @@ Using PyTorch.
 
 ## Specs
 - Geometry Notation = RBOX
+- Detection Granularity = Text-line
+- Detection Output Fashion = Per-pixel
 
-## Roadmap
+## RoadMap
 #### Feature Extractor: ResNet & DeConv (11 Apr) - Done & Executable, 11 Apr
 #### Det Branch: EAST Trans, visualize layers and CUDA Enable Check (12-13 Apr)
-#### Dataloader & Helper Func (13 Apr)
-Start Detection Branch Experiment
-Check Rec Progress - Dict...
+Cuda: `Variable.cuda()` and `model.cuda()`.  
+However PyTorch 0.3.1 no longer support old GPUs like Quadro K4200 (3.0).
+#### DataLoader & Helper Func (13 Apr + 1)
+Start Detection Branch Experiment  
+Confirm Rec Progress - Dict...  
 #### Rec Branch: CRNN Trans (14 Apr)
 #### RoI Op, Loss Design and Optimizer(15 Apr)
 #### Training, Augmentation, OHEM etc. (15 Apr ~)
