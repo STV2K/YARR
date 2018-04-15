@@ -71,7 +71,7 @@ def test(img_name):
         #pos_loss, neg_loss, loc_loss, _ = STVNet.ssd_losses(logits, localisations, gclasses, glocal, gscores)
 
         # with tf.device('/device:CPU:0'):
-        pre_locals = STVNet.tf_ssd_bboxes_decode(localisations, anchors, scope='bboxes_decode')
+        pre_locals = STVNet.tf_ssd_bboxes_decode(localisations, anchors, offset=True, scope='bboxes_decode')
         pre_scores, pre_bboxes = STVNet.detected_bboxes(predictions, pre_locals,
                                                         select_threshold=config.FLAGS.select_threshold,
                                                         nms_threshold=config.FLAGS.nms_threshold,

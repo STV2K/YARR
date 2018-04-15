@@ -449,6 +449,7 @@ def tf_ssd_bboxes_select(predictions_net, localizations_net,
 
 def tf_ssd_bboxes_decode_layer(feat_localizations,
                                anchors_layer,
+                               anchors_layer_offset=None,
                                prior_scaling=[0.1, 0.1, 0.2, 0.2]):
     """Compute the relative bounding boxes from the layer features and
     reference anchor bounding boxes.
@@ -461,6 +462,15 @@ def tf_ssd_bboxes_decode_layer(feat_localizations,
       Tensor Nx4: ymin, xmin, ymax, xmax
     """
     yref, xref, href, wref = anchors_layer
+    if anchors_layer_offset:
+      yref_off, xref_off, _, _ = anchors_layer_offset
+      expand_size = tf.zeros((href.size), dtype=tf.float32)
+      yref -= expand_size
+      xref -= expand_size
+      yref_off -= expand_size
+      xref_off -= expand_size
+      yref = tf.concat([yref, yref_off], axis=-1)
+      xref = tf.concat([xref, xref_off], axis=-1)
 
     # Compute center, height and width
     cx = feat_localizations[:, :, :, :, 0] * wref * prior_scaling[0] + xref
@@ -478,6 +488,7 @@ def tf_ssd_bboxes_decode_layer(feat_localizations,
 
 def tf_ssd_bboxes_decode(feat_localizations,
                          anchors,
+                         offset=False,
                          prior_scaling=default_params.prior_scaling,
                          scope='ssd_bboxes_decode'):
     """Compute the relative bounding boxes from the SSD net features and
@@ -493,9 +504,17 @@ def tf_ssd_bboxes_decode(feat_localizations,
     with tf.name_scope(scope):
         bboxes = []
         for i, anchors_layer in enumerate(anchors):
+            anchors_layer_offset=None
+            if offset:
+              y, x, h, w = anchors_layer
+              y_offset = y + 0.5 * steps[i] / img_shape[0]
+              mask = tf.logical_not(y_offset > 1.0)
+              y_offset = tf.where(mask, y_offset, y)
+              anchors_layer_offset = y_offset, x, h, w
             bboxes.append(
                 tf_ssd_bboxes_decode_layer(feat_localizations[i],
                                            anchors_layer,
+                                           anchors_layer_offset,
                                            prior_scaling))
         return bboxes
 
