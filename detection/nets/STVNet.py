@@ -468,9 +468,11 @@ def tf_ssd_bboxes_decode_layer(feat_localizations,
       yref -= expand_size
       xref -= expand_size
       yref_off -= expand_size
-      xref_off -= expand_size
+      #xref_off -= expand_size
       yref = tf.concat([yref, yref_off], axis=-1)
-      xref = tf.concat([xref, xref_off], axis=-1)
+      xref = tf.concat([xref, xref], axis=-1)
+      href = tf.concat([href, href], axis=-1)
+      wref = tf.concat([wref, wref], axis=-1)
 
     # Compute center, height and width
     cx = feat_localizations[:, :, :, :, 0] * wref * prior_scaling[0] + xref
@@ -501,6 +503,9 @@ def tf_ssd_bboxes_decode(feat_localizations,
     Return:
       List of Tensors Nx4: ymin, xmin, ymax, xmax
     """
+    steps = default_params.anchor_steps
+    img_shape = default_params.img_shape
+
     with tf.name_scope(scope):
         bboxes = []
         for i, anchors_layer in enumerate(anchors):

@@ -14,7 +14,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_test/'
 #ICDAR_Path='/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_test_images/'
-img_name = 'STV2K_ts_0413.jpg' #'img_243.jpg'
+img_name = 'STV2K_ts_0073.jpg' #'img_243.jpg'
 
 img_width = config.FLAGS.input_size_width
 img_height = config.FLAGS.input_size_height
@@ -108,7 +108,7 @@ def test(img_name):
             # fig = plt.figure(figsize=(12, 12))
             # plt.imshow(img)
             result_img = Image.fromarray(np.uint8(img))
-            result_img.save('results/result-vgg-icdar-8000-' + img_name)
+            result_img.save('results/offset/result-5200-' + img_name)
             #print('positive loss: ', p_loss)
             #print('negtive loss: ', n_loss)
             #print('localisation loss: ', lc_loss)
