@@ -17,6 +17,7 @@ ICDAR_Path='/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_test_images/'
 img_name = 'img_107.jpg' #'STV2K_ts_0339.jpg' #'img_243.jpg'
 PATH = ICDAR_Path
 
+test_all_path = ICDAR_Path
 generate_pic_path = './results/icdar/images/'
 generate_txt_path = './results/icdar/texts/'
 generate_threshold = 0.1
@@ -150,7 +151,7 @@ def test_all(dir_path):
 
             for root, dirnames, filenames in os.walk(dir_path):
                 for filename in filenames:
-                    if not filename.endwith('.jpg'):
+                    if not filename.endswith('.jpg'):
                         continue
 
                     im, ori_width, ori_height = get_image(dir_path + filename)
@@ -162,10 +163,11 @@ def test_all(dir_path):
                     bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], generate_threshold, (31, 119, 180))
                     result_img = Image.fromarray(np.uint8(img))
                     result_img.save(generate_pic_path + filename)
-                    txt_generator(filename, pre_s[1][0], pre_box[1][0], generate_threshold)
+                    txt_generator(filename, pre_s[1][0], pre_box[1][0], generate_threshold, ori_width, ori_height)
+                    print(filename + ' finished.')
 
 
-def txt_generator(filename, scores, bboxes, threshold):
+def txt_generator(filename, scores, bboxes, threshold, width, height):
     txt_save_path = os.path.join(generate_txt_path, 'res_' + filename.split('.')[0]+'.txt')
     txt_file = open(txt_save_path, 'wt')
 
@@ -174,11 +176,11 @@ def txt_generator(filename, scores, bboxes, threshold):
         score = scores[i]
         if score < threshold:
             continue
-        ymin = bbox[0]
-        xmin = bbox[1]
-        ymax = bbox[2]
-        xmax = bbox[3]
-        result_str = xmin+','+ymin+','+xmax+','+ymin+','+xmax+','+ymax+','+xmin+','+ymax+'\r''\n'
+        ymin = str(int(bbox[0]*height))
+        xmin = str(int(bbox[1]*width))
+        ymax = str(int(bbox[2]*height))
+        xmax = str(int(bbox[3]*width))
+        result_str = xmin+','+ymin+','+xmax+','+ymin+','+xmax+','+ymax+','+xmin+','+ymax+'\r\n'
         txt_file.write(result_str)
 
     txt_file.close()
@@ -212,6 +214,7 @@ def bboxes_draw_on_img(img, scores, bboxes, threshold, color, thickness=5):
 
 
 if __name__ == '__main__':
-    test(img_name)
+    #test(img_name)
+    test_all(test_all_path)
     
 
