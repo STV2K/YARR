@@ -14,6 +14,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 img_width = config.FLAGS.input_size_width
 img_height = config.FLAGS.input_size_height
+train_image_path = '/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_train_images/'
+train_gt_path = '/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_train_gts/'
 
 
 def resize_image(image, size,
@@ -137,15 +139,15 @@ def bytes_feature(value):
 
 def get_images():
     files = []
-    for root, dirs, filenames in os.walk(config.FLAGS.training_data_path):
+    for root, dirs, filenames in os.walk(train_image_path):
         for file in filenames:
             if not file.endswith('.jpg'):
                 continue
             files.append(os.path.join(root, file))
-    print('{} training images in {}'.format(len(files), config.FLAGS.training_data_path))
+    print('{} training images in {}'.format(len(files), train_image_path))
     return files
 
-def load_annotation(ano_path):
+def load_annotation_STV2K(ano_path):
     polys = []
     tags = []
     objIndex = 0
@@ -178,6 +180,28 @@ def load_annotation(ano_path):
 
     return polys, tags
 
+def load_annotation(ano_path):
+    polys = []
+    tags = []
+    with open(ano_path, 'r', encoding="gbk") as file:
+        for line in file.read_lines():
+            line = line.strip('\r\n')
+            line = line.strip('\n')
+            datas = line.split(',')
+
+            if datas[-1] == '###':
+                tags.append(False)
+#                continue
+            else:
+                tags.append(True)
+
+            nums = []
+            for data in datas[0:-1]:
+                nums.append(int(data))
+            x1, y1, x2, y2, x3, y3, x4, y4 = nums
+            polys.append((x1, y1, x2, y2, x3, y3, x4, y4))
+    return polys, tags
+
 
 def process_image(filename):
     # image_data = tf.gfile.FastGFile(filename, 'rb').read()
@@ -186,7 +210,8 @@ def process_image(filename):
     im = cv2.imread(filename)
     shape = im.shape
 
-    anno_filename = filename.replace('.jpg', '.txt')
+    #anno_filename = filename.replace('.jpg', '.txt')
+    anno_filename = train_gt_path + 'gt_' + filname.split('/')[-1].replace('jpg', 'txt')
     bboxes, tags = load_annotation(anno_filename)
 
     return image_data, shape, bboxes, tags
@@ -232,9 +257,35 @@ def add_to_tfrecord(filename, tfrecord_writer):
     tfrecord_writer.write(example.SerializeToString())
 
 
-SAMPLE_PER_FILE = 200
+SAMPLE_PER_FILE = 100
 
-def run(output_dir, shuffling=False, name='STV2K'):
+def run_STV2K(output_dir, shuffling=False, name='STV2K'):
+    filenames = get_images()
+
+    if shuffling:
+        random.seed()
+        random.shuffle(filenames)
+
+    i = 0
+    index = 0
+    files_len = len(filenames)
+    while i < files_len:
+        tf_filename = "%s%s_%04d.tfrecord" % (output_dir, name, index)
+        with tf.python_io.TFRecordWriter(tf_filename) as tfrecord_writer:
+            j = 0
+            while i < files_len and j < SAMPLE_PER_FILE:
+                sys.stdout.write("\r>> Converting image %d/%d" % (i+1, files_len))
+                sys.stdout.flush()
+
+                filename = filenames[i]
+                add_to_tfrecord(filename, tfrecord_writer)
+                i += 1
+                j += 1
+            index += 1
+
+    print('\nFinish converting datasets')
+
+def run(output_dir, shuffling=False, name='icdar'):
     filenames = get_images()
 
     if shuffling:
@@ -369,7 +420,8 @@ def test_get_image_annotation():
 
 
 def generate_tfrecord():
-    run("/media/data2/hcx_data/STV2KTF/", shuffling=True)
+    #run_STV2K("/media/data2/hcx_data/STV2KTF/", shuffling=True)
+    run("/media/data2/hcx_data/ICDARTF/", shuffling=True)
 
 
 def test_read():
@@ -406,4 +458,5 @@ def test_read():
 
 
 if __name__ == '__main__':
-    test_read()
+    #test_read()
+    generate_tfrecord()
