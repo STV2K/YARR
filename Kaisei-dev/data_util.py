@@ -5,10 +5,10 @@
 import os
 import sys
 import cv2
-import time
-import queue
-import threading
-import multiprocessing
+# import time
+# import queue
+# import threading
+# import multiprocessing
 
 import torch
 import numpy as np
@@ -16,13 +16,14 @@ from PIL import Image
 from shapely.geometry import Polygon
 if sys.platform == "darwin":
     import matplotlib as mil
-    mil.use('TkAgg') # Fix RTE caused by pyplot under macOS
+    mil.use('TkAgg')  # Fix RTE caused by pyplot under macOS
 import matplotlib.pyplot as plt
 import matplotlib.patches as Patches
 
 import config
 
 
+# Tensor Transformation
 def image_normalize(images, means=(123.68 / 255, 116.78 / 255, 103.94 / 255)):
     """
     Image normalization used in EAST.
@@ -36,26 +37,24 @@ def image_normalize(images, means=(123.68 / 255, 116.78 / 255, 103.94 / 255)):
     return torch.Tensor.sub(images, torch.Tensor(means).view(1, 3, 1, 1))
 
 
-def resize_image(image, max_side_len=1280):
+# PIL Transformation
+def resize_image(image, max_side_len):
     """
-    Adopted from EAST code.
+    Adopted from EAST code. Modified to use PIL.
     resize image to a size multiple of 32 which is required by the network.
-    :param image: the resized image
+    :param image: the original PIL image
     :param max_side_len: limit of max image size to avoid out of memory in gpu
     :return: the resized image and the resize ratio
     """
     w, h = image.size
 
-    resize_w = w
-    resize_h = h
-
     # limit the max side
-    if max(resize_h, resize_w) > max_side_len:
-        ratio = float(max_side_len) / resize_h if resize_h > resize_w else float(max_side_len) / resize_w
+    if max(h, w) > max_side_len:
+        ratio = float(max_side_len) / h if h > w else float(max_side_len) / w
     else:
         ratio = 1.
-    resize_h = int(resize_h * ratio)
-    resize_w = int(resize_w * ratio)
+    resize_h = int(h * ratio)
+    resize_w = int(w * ratio)
 
     resize_h = resize_h if resize_h % 32 == 0 else (resize_h // 32 - 1) * 32
     resize_w = resize_w if resize_w % 32 == 0 else (resize_w // 32 - 1) * 32
@@ -64,87 +63,36 @@ def resize_image(image, max_side_len=1280):
     ratio_h = resize_h / float(h)
     ratio_w = resize_w / float(w)
 
-    return im, (ratio_h, ratio_w)
+    return im, (ratio_w, ratio_h)
 
 
-def get_image_list(file_path):
-    file_list = []
-    for ext in ['jpg', 'png', 'jpeg', 'JPG']:
-        for root, dirs, files in os.walk(file_path):
-            for f in files:
-                if f.split(".")[-1] in ext:
-                    file_list.append(os.path.join(file_path, f))
-    return file_list
-
-
-def load_annotation(label_path, image_size, encoding="GBK"):
-    """
-    Load the new STV2K label file into arrays using EAST Fashion.
-    :return *text_quad*, *text_content* and *text_bool*.
-
-    The label file ought to be encoded with GB2312 and organized as:
-        [Line 1] x1, y1, x2, y2, x3, y3, x4, y4 (all integers with origin on the top left)
-               (TopRight)(BtmR)  (BtmL) (TopLeft)
-        [Line 2] Text contents or blank line if unrecognizable
-        [Line 3] Blank line
-        [Repeat for other bounding boxes]
-
-    NOTICE: Some indices in the label files may be out of boundary, so we used some naive check here.
-    """
-    text_quad = []
-    text_content = []
-    text_bool = []
-    with open(label_path, "r", encoding=encoding) as lf:
-        count = 0
-        for line in lf:
-            if count % 3 == 0 and line != "":
-                line = line.strip().split(",")
-                x_axis = list(map(int, line[0:-1:2]))
-                y_axis = list(map(int, line[1::2]))
-                temp_quad = []
-                # Check for out-of-boundary indices
-                for i in range(len(x_axis)):
-                    x_axis[i] = 0 if x_axis[i] < 0 else x_axis[i]
-                    y_axis[i] = 0 if y_axis[i] < 0 else y_axis[i]
-                    x_axis[i] = image_size[0] if x_axis[i] > image_size[0] else x_axis[i]
-                    y_axis[i] = image_size[1] if y_axis[i] > image_size[1] else y_axis[i]
-                    temp_quad.append((x_axis[i], y_axis[i]))
-                text_quad.append(temp_quad)
-            elif count % 3 == 1:
-                content = line.strip()
-                text_content.append(content)
-                if not len(content):
-                    text_bool.append(True)
-                else:
-                    text_bool.append(False)
-            count += 1
-
-    return np.array(text_quad, dtype=np.float32), text_content, np.array(text_bool, dtype=np.bool)
-
-
+# Computational Geometry
 def polygon_area(poly):
     """
     compute area of a polygon
     :param poly:
     :return: area of poly
     """
-    return Polygon(poly).area
-    # TODO: Time and compare
-    # edge = [
-    #     (poly[1][0] - poly[0][0]) * (poly[1][1] + poly[0][1]),
-    #     (poly[2][0] - poly[1][0]) * (poly[2][1] + poly[1][1]),
-    #     (poly[3][0] - poly[2][0]) * (poly[3][1] + poly[2][1]),
-    #     (poly[0][0] - poly[3][0]) * (poly[0][1] + poly[3][1])
-    # ]
-    # return np.sum(edge)/2.
+    # return Polygon(poly).area
+    # DONE: Time and compare
+    #       Shapely costs 1.6x if Polygon obj creation costs are included
+    #       However here we shall keep the edge impl for points direction checking,
+    #       as shapely impl returns all positive results.
+    edge = [
+        (poly[1][0] - poly[0][0]) * (poly[1][1] + poly[0][1]),
+        (poly[2][0] - poly[1][0]) * (poly[2][1] + poly[1][1]),
+        (poly[3][0] - poly[2][0]) * (poly[3][1] + poly[2][1]),
+        (poly[0][0] - poly[3][0]) * (poly[0][1] + poly[3][1])
+    ]
+    return np.sum(edge)/2.
 
 
-def check_and_validate_polys(polys, tags, xxx_todo_changeme):
+def check_and_validate_polys(polys, tags, tag_bools, img_size):
     """
     check so that the text poly is in the same direction,
     and also filter some invalid polygons
     """
-    (h, w) = xxx_todo_changeme
+    (w, h) = img_size
     if polys.shape[0] == 0:
         return polys
     polys[:, :, 0] = np.clip(polys[:, :, 0], 0, w-1)
@@ -152,149 +100,30 @@ def check_and_validate_polys(polys, tags, xxx_todo_changeme):
 
     validated_polys = []
     validated_tags = []
-    for poly, tag in zip(polys, tags):
+    validated_bools = []
+    for poly, tag, tag_bool in zip(polys, tags, tag_bools):
         p_area = polygon_area(poly)
         if abs(p_area) < 1:
-            # print poly
-            print('invalid poly')
+            # print('invalid poly')
             continue
         if p_area > 0:
-            print('poly in wrong direction')
+            # print('poly in wrong direction')
             poly = poly[(0, 3, 2, 1), :]
         validated_polys.append(poly)
         validated_tags.append(tag)
-    return np.array(validated_polys), np.array(validated_tags)
-
-
-# def crop_area(im, polys, tags, crop_background=False, max_tries=50):
-#     """
-#     make random crop from the input image
-#     """
-#     h, w, _ = im.shape
-#     pad_h = h//10
-#     pad_w = w//10
-#     h_array = np.zeros((h + pad_h*2), dtype=np.int32)
-#     w_array = np.zeros((w + pad_w*2), dtype=np.int32)
-#     for poly in polys:
-#         poly = np.round(poly, decimals=0).astype(np.int32)
-#         minx = np.min(poly[:, 0])
-#         maxx = np.max(poly[:, 0])
-#         w_array[minx+pad_w:maxx+pad_w] = 1
-#         miny = np.min(poly[:, 1])
-#         maxy = np.max(poly[:, 1])
-#         h_array[miny+pad_h:maxy+pad_h] = 1
-#     # ensure the cropped area not across a text
-#     h_axis = np.where(h_array == 0)[0]
-#     w_axis = np.where(w_array == 0)[0]
-#     if len(h_axis) == 0 or len(w_axis) == 0:
-#         return im, polys, tags
-#     for i in range(max_tries):
-#         xx = np.random.choice(w_axis, size=2)
-#         xmin = np.min(xx) - pad_w
-#         xmax = np.max(xx) - pad_w
-#         xmin = np.clip(xmin, 0, w-1)
-#         xmax = np.clip(xmax, 0, w-1)
-#         yy = np.random.choice(h_axis, size=2)
-#         ymin = np.min(yy) - pad_h
-#         ymax = np.max(yy) - pad_h
-#         ymin = np.clip(ymin, 0, h-1)
-#         ymax = np.clip(ymax, 0, h-1)
-#         if xmax - xmin < config.min_crop_side_ratio * w or ymax - ymin < config.min_crop_side_ratio * h:
-#             # area too small
-#             continue
-#         if polys.shape[0] != 0:
-#             poly_axis_in_area = (polys[:, :, 0] >= xmin) & (polys[:, :, 0] <= xmax) \
-#                                 & (polys[:, :, 1] >= ymin) & (polys[:, :, 1] <= ymax)
-#             selected_polys = np.where(np.sum(poly_axis_in_area, axis=1) == 4)[0]
-#         else:
-#             selected_polys = []
-#         if len(selected_polys) == 0:
-#             # no text in this area
-#             if crop_background:
-#                 return im[ymin:ymax+1, xmin:xmax+1, :], polys[selected_polys], tags[selected_polys]
-#             else:
-#                 continue
-#         im = im[ymin:ymax+1, xmin:xmax+1, :]
-#         polys = polys[selected_polys]
-#         tags = tags[selected_polys]
-#         polys[:, :, 0] -= xmin
-#         polys[:, :, 1] -= ymin
-#         return im, polys, tags
-#
-#     return im, polys, tags
-
-
-def shrink_poly(poly, r):
-    """
-    fit a poly inside the origin poly, maybe bugs here...
-    used for generate the score map
-    """
-    # # shrink ratio
-    # R = 0.8
-    # # find the longer pair
-    # if np.linalg.norm(poly[0] - poly[1]) + np.linalg.norm(poly[2] - poly[3]) > \
-    #                 np.linalg.norm(poly[0] - poly[3]) + np.linalg.norm(poly[1] - poly[2]):
-    #     # first move (p0, p1), (p2, p3), then (p0, p3), (p1, p2)
-    #     ## p0, p1
-    #     theta = np.arctan2((poly[1][1] - poly[0][1]), (poly[1][0] - poly[0][0]))
-    #     poly[0][0] += R * r[0] * np.cos(theta)
-    #     poly[0][1] += R * r[0] * np.sin(theta)
-    #     poly[1][0] -= R * r[1] * np.cos(theta)
-    #     poly[1][1] -= R * r[1] * np.sin(theta)
-    #     ## p2, p3
-    #     theta = np.arctan2((poly[2][1] - poly[3][1]), (poly[2][0] - poly[3][0]))
-    #     poly[3][0] += R * r[3] * np.cos(theta)
-    #     poly[3][1] += R * r[3] * np.sin(theta)
-    #     poly[2][0] -= R * r[2] * np.cos(theta)
-    #     poly[2][1] -= R * r[2] * np.sin(theta)
-    #     ## p0, p3
-    #     theta = np.arctan2((poly[3][0] - poly[0][0]), (poly[3][1] - poly[0][1]))
-    #     poly[0][0] += R * r[0] * np.sin(theta)
-    #     poly[0][1] += R * r[0] * np.cos(theta)
-    #     poly[3][0] -= R * r[3] * np.sin(theta)
-    #     poly[3][1] -= R * r[3] * np.cos(theta)
-    #     ## p1, p2
-    #     theta = np.arctan2((poly[2][0] - poly[1][0]), (poly[2][1] - poly[1][1]))
-    #     poly[1][0] += R * r[1] * np.sin(theta)
-    #     poly[1][1] += R * r[1] * np.cos(theta)
-    #     poly[2][0] -= R * r[2] * np.sin(theta)
-    #     poly[2][1] -= R * r[2] * np.cos(theta)
-    # else:
-    #     ## p0, p3
-    #     # print poly
-    #     theta = np.arctan2((poly[3][0] - poly[0][0]), (poly[3][1] - poly[0][1]))
-    #     poly[0][0] += R * r[0] * np.sin(theta)
-    #     poly[0][1] += R * r[0] * np.cos(theta)
-    #     poly[3][0] -= R * r[3] * np.sin(theta)
-    #     poly[3][1] -= R * r[3] * np.cos(theta)
-    #     ## p1, p2
-    #     theta = np.arctan2((poly[2][0] - poly[1][0]), (poly[2][1] - poly[1][1]))
-    #     poly[1][0] += R * r[1] * np.sin(theta)
-    #     poly[1][1] += R * r[1] * np.cos(theta)
-    #     poly[2][0] -= R * r[2] * np.sin(theta)
-    #     poly[2][1] -= R * r[2] * np.cos(theta)
-    #     ## p0, p1
-    #     theta = np.arctan2((poly[1][1] - poly[0][1]), (poly[1][0] - poly[0][0]))
-    #     poly[0][0] += R * r[0] * np.cos(theta)
-    #     poly[0][1] += R * r[0] * np.sin(theta)
-    #     poly[1][0] -= R * r[1] * np.cos(theta)
-    #     poly[1][1] -= R * r[1] * np.sin(theta)
-    #     ## p2, p3
-    #     theta = np.arctan2((poly[2][1] - poly[3][1]), (poly[2][0] - poly[3][0]))
-    #     poly[3][0] += R * r[3] * np.cos(theta)
-    #     poly[3][1] += R * r[3] * np.sin(theta)
-    #     poly[2][0] -= R * r[2] * np.cos(theta)
-    #     poly[2][1] -= R * r[2] * np.sin(theta)
-    return poly
+        validated_bools.append(tag_bool)
+    return np.array(validated_polys), np.array(validated_tags), np.array(validated_bools)
 
 
 def point_dist_to_line(p1, p2, p3):
-    # compute the distance from p3 to p1-p2
+    # compute the distance from p3 to p1~p2
+    print("Computing " + str(p3) + " to line " + str(p1) + str(p2))
+    print("Get: " + str(np.linalg.norm(np.cross(p2 - p1, p1 - p3)) / np.linalg.norm(p2 - p1)))
     return np.linalg.norm(np.cross(p2 - p1, p1 - p3)) / np.linalg.norm(p2 - p1)
 
 
 def fit_line(p1, p2):
-    # fit a line ax+by+c = 0
+    # fit a line ax+by+c=0
     if p1[0] == p1[1]:
         return [1., 0., -p1[0]]
     else:
@@ -303,7 +132,7 @@ def fit_line(p1, p2):
 
 
 def line_cross_point(line1, line2):
-    # line1 0= ax+by+c, compute the cross point of line1 and line2
+    # line1 0=ax+by+c, compute the cross point of line1 and line2
     if line1[0] != 0 and line1[0] == line2[0]:
         print('Cross point does not exist')
         return None
@@ -347,12 +176,12 @@ def rectangle_from_parallelogram(poly):
     if angle_p0 < 0.5 * np.pi:
         if np.linalg.norm(p0 - p1) > np.linalg.norm(p0-p3):
             # p0 and p2
-            ## p0
+            # p0
             p2p3 = fit_line([p2[0], p3[0]], [p2[1], p3[1]])
             p2p3_vertical = line_vertical(p2p3, p0)
 
             new_p3 = line_cross_point(p2p3, p2p3_vertical)
-            ## p2
+            # p2
             p0p1 = fit_line([p0[0], p1[0]], [p0[1], p1[1]])
             p0p1_vertical = line_vertical(p0p1, p2)
 
@@ -371,12 +200,12 @@ def rectangle_from_parallelogram(poly):
     else:
         if np.linalg.norm(p0-p1) > np.linalg.norm(p0-p3):
             # p1 and p3
-            ## p1
+            # p1
             p2p3 = fit_line([p2[0], p3[0]], [p2[1], p3[1]])
             p2p3_vertical = line_vertical(p2p3, p1)
 
             new_p2 = line_cross_point(p2p3, p2p3_vertical)
-            ## p3
+            # p3
             p0p1 = fit_line([p0[0], p1[0]], [p0[1], p1[1]])
             p0p1_vertical = line_vertical(p0p1, p3)
 
@@ -504,7 +333,346 @@ def restore_rectangle_rbox(origin, geometry):
 def restore_rectangle(origin, geometry):
     return restore_rectangle_rbox(origin, geometry)
 
+
+def generate_rbox(im_size, polys, tag_bools):
+    w, h = im_size
+    poly_mask = np.zeros((w, h), dtype=np.uint8)
+    score_map = np.zeros((w, h), dtype=np.uint8)
+    geo_map = np.zeros((5, w, h), dtype=np.float32)
+    # mask used during training to ignore some hard areas
+    training_mask = np.ones((w, h), dtype=np.uint8)
+    for poly_idx, poly_tag in enumerate(zip(polys, tag_bools)):
+        poly = poly_tag[0]
+        tag = poly_tag[1]
+
+        r = [None, None, None, None]
+        for i in range(4):
+            r[i] = min(np.linalg.norm(poly[i] - poly[(i + 1) % 4]),
+                       np.linalg.norm(poly[i] - poly[(i - 1) % 4]))
+        # score map
+        # We don't shrink poly like EAST did to avoid computational geometry overkill
+        # shrunk_poly = shrink_poly(poly.copy(), r).astype(np.int32)[np.newaxis, :, :]
+        cv2.fillPoly(score_map, poly.astype(np.int32)[np.newaxis, :, :], 1)
+        cv2.fillPoly(poly_mask, poly.astype(np.int32)[np.newaxis, :, :], poly_idx + 1)
+        # if the poly is too small, then ignore it during training
+        poly_w = min(np.linalg.norm(poly[0] - poly[3]), np.linalg.norm(poly[1] - poly[2]))
+        poly_h = min(np.linalg.norm(poly[0] - poly[1]), np.linalg.norm(poly[2] - poly[3]))
+        if min(poly_h, poly_w) < config.min_text_size:
+            cv2.fillPoly(training_mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
+        if tag:
+            cv2.fillPoly(training_mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
+
+        xy_in_poly = np.argwhere(poly_mask == (poly_idx + 1))
+        # if geometry == 'RBOX':
+        # 对任意两个顶点的组合生成一个平行四边形
+        fitted_parallelograms = []
+        for i in range(4):
+            p0 = poly[i]
+            p1 = poly[(i + 1) % 4]
+            p2 = poly[(i + 2) % 4]
+            p3 = poly[(i + 3) % 4]
+            edge = fit_line([p0[0], p1[0]], [p0[1], p1[1]])
+            backward_edge = fit_line([p0[0], p3[0]], [p0[1], p3[1]])
+            forward_edge = fit_line([p1[0], p2[0]], [p1[1], p2[1]])
+            if point_dist_to_line(p0, p1, p2) > point_dist_to_line(p0, p1, p3):
+                # 平行线经过p2
+                if edge[1] == 0:
+                    edge_opposite = [1, 0, -p2[0]]
+                else:
+                    edge_opposite = [edge[0], -1, p2[1] - edge[0] * p2[0]]
+            else:
+                # 经过p3
+                if edge[1] == 0:
+                    edge_opposite = [1, 0, -p3[0]]
+                else:
+                    edge_opposite = [edge[0], -1, p3[1] - edge[0] * p3[0]]
+            # move forward edge
+            new_p0 = p0
+            new_p1 = p1
+            new_p2 = p2
+            new_p3 = p3
+            new_p2 = line_cross_point(forward_edge, edge_opposite)
+            if point_dist_to_line(p1, new_p2, p0) > point_dist_to_line(p1, new_p2, p3):
+                # across p0
+                if forward_edge[1] == 0:
+                    forward_opposite = [1, 0, -p0[0]]
+                else:
+                    forward_opposite = [forward_edge[0], -1, p0[1] - forward_edge[0] * p0[0]]
+            else:
+                # across p3
+                if forward_edge[1] == 0:
+                    forward_opposite = [1, 0, -p3[0]]
+                else:
+                    forward_opposite = [forward_edge[0], -1, p3[1] - forward_edge[0] * p3[0]]
+            new_p0 = line_cross_point(forward_opposite, edge)
+            new_p3 = line_cross_point(forward_opposite, edge_opposite)
+            fitted_parallelograms.append([new_p0, new_p1, new_p2, new_p3, new_p0])
+            # or move backward edge
+            new_p0 = p0
+            new_p1 = p1
+            new_p2 = p2
+            new_p3 = p3
+            new_p3 = line_cross_point(backward_edge, edge_opposite)
+            if point_dist_to_line(p0, p3, p1) > point_dist_to_line(p0, p3, p2):
+                # across p1
+                if backward_edge[1] == 0:
+                    backward_opposite = [1, 0, -p1[0]]
+                else:
+                    backward_opposite = [backward_edge[0], -1, p1[1] - backward_edge[0] * p1[0]]
+            else:
+                # across p2
+                if backward_edge[1] == 0:
+                    backward_opposite = [1, 0, -p2[0]]
+                else:
+                    backward_opposite = [backward_edge[0], -1, p2[1] - backward_edge[0] * p2[0]]
+            new_p1 = line_cross_point(backward_opposite, edge)
+            new_p2 = line_cross_point(backward_opposite, edge_opposite)
+            fitted_parallelograms.append([new_p0, new_p1, new_p2, new_p3, new_p0])
+        areas = [abs(polygon_area(t)) for t in fitted_parallelograms]
+        # areas = [Polygon(t).area for t in fitted_parallelograms]
+        parallelogram = np.array(fitted_parallelograms[np.argmin(areas)][:-1], dtype=np.float32)
+        # sort the polygon
+        parallelogram_coord_sum = np.sum(parallelogram, axis=1)
+        min_coord_idx = np.argmin(parallelogram_coord_sum)
+        parallelogram = parallelogram[
+            [min_coord_idx, (min_coord_idx + 1) % 4, (min_coord_idx + 2) % 4, (min_coord_idx + 3) % 4]]
+
+        rectangle = rectangle_from_parallelogram(parallelogram)
+        rectangle, rotate_angle = sort_rectangle(rectangle)
+
+        p0_rect, p1_rect, p2_rect, p3_rect = rectangle
+        # Ugly, but must exchange point axis since we use different conventions of (w, h) rather than (h, w) in EAST
+        p0_rect_ex = exchange_point_axis(p0_rect)
+        p1_rect_ex = exchange_point_axis(p1_rect)
+        p2_rect_ex = exchange_point_axis(p2_rect)
+        p3_rect_ex = exchange_point_axis(p3_rect)
+        for y, x in xy_in_poly:
+            point = np.array([y, x], dtype=np.float32)
+            # top
+            geo_map[0, y, x] = point_dist_to_line(p0_rect_ex, p1_rect_ex, point)
+            # right
+            geo_map[1, y, x] = point_dist_to_line(p1_rect_ex, p2_rect_ex, point)
+            # down
+            geo_map[2, y, x] = point_dist_to_line(p2_rect_ex, p3_rect_ex, point)
+            # left
+            geo_map[3, y, x] = point_dist_to_line(p3_rect_ex, p0_rect_ex, point)
+            # angle
+            geo_map[4, y, x] = rotate_angle
+    return score_map, geo_map, training_mask
+
+
+# Dataset helpers
+def get_image_list(file_path):
+    file_list = []
+    for ext in ['jpg', 'png', 'jpeg', 'JPG']:
+        for root, dirs, files in os.walk(file_path):
+            for f in files:
+                # Only check files under root
+                if f.split(".")[-1] in ext and root == file_path:
+                    file_list.append(os.path.join(file_path, f))
+    return file_list
+
+
+def load_annotation(label_path, im_ratio, encoding="GBK"):
+    """
+    Load the new STV2K label file into arrays using EAST Fashion.
+    :return *text_quad*, *text_content* and *text_bool*.
+
+    The label file ought to be encoded with GB2312 and organized as:
+        [Line 1] x1, y1, x2, y2, x3, y3, x4, y4 (all integers with origin on the top left)
+               (TopRight)(BtmR)  (BtmL) (TopLeft)
+        [Line 2] Text contents or blank line if unrecognizable
+        [Line 3] Blank line
+        [Repeat for other bounding boxes]
+
+    NOTICE: Some indices in the label files may be out of boundary, we deal with np.clip in check_and_validate_polys.
+    """
+    text_quad = []
+    text_content = []
+    text_bool = []
+    with open(label_path, "r", encoding=encoding) as lf:
+        count = 0
+        for line in lf:
+            if count % 3 == 0 and line != "":
+                line = line.strip().split(",")
+                x_axis = list(map(int, line[0:-1:2]))
+                y_axis = list(map(int, line[1::2]))
+                temp_quad = []
+                # Resize quads accordingly
+                for i in range(len(x_axis)):
+                    # Out-of-boundary indices are dealt in check_and_validate_polys().
+                    # x_axis[i] = 0 if x_axis[i] < 0 else x_axis[i]
+                    # y_axis[i] = 0 if y_axis[i] < 0 else y_axis[i]
+                    # x_axis[i] = image_size[0] if x_axis[i] > image_size[0] else x_axis[i]
+                    # y_axis[i] = image_size[1] if y_axis[i] > image_size[1] else y_axis[i]
+                    temp_quad.append((int(x_axis[i] * im_ratio[0]), int(y_axis[i] * im_ratio[1])))
+                text_quad.append(temp_quad)
+            elif count % 3 == 1:
+                content = line.strip()
+                text_content.append(content)
+                if len(content):
+                    text_bool.append(True)
+                else:
+                    text_bool.append(False)
+            count += 1
+
+    return np.array(text_quad, dtype=np.float32), text_content, np.array(text_bool, dtype=np.bool)
+
+
+def load_data(file_path=config.demo_data_path):
+    image_list = get_image_list(file_path)
+    np.random.shuffle(image_list)
+
+    ret = []
+    for img_path in image_list:
+        img = Image.open(img_path)
+        img_filename = str(os.path.basename(img_path))
+        # img_ori_size = img.size
+        label_path = img_path.replace(img_filename.split('.')[1], 'txt')
+        img, resize_ratio = resize_image(img, config.max_side_len)
+        label_quad, label_content, label_bool = load_annotation(label_path, resize_ratio)
+        vali_quad, vali_cont, vali_bool = check_and_validate_polys(label_quad, label_content, label_bool, img.size)
+        score_map, geo_map, training_mask = generate_rbox(img.size, vali_quad, vali_bool)
+        ret.append([img_filename, img, resize_ratio,
+                    vali_quad, vali_cont, vali_bool,
+                    score_map, geo_map, training_mask])
+    return ret
+
+
+# Visualizing
+def show_gray_colormap(array):
+    plt.imshow(array, cmap="gray")
+    plt.show()
+
+
+# Other helpers
+def exchange_point_axis(p):
+    return np.array([p[1], p[0]])
+
+
+# DEPRECATED
+# def crop_area(im, polys, tags, crop_background=False, max_tries=50):
+#     """
+#     make random crop from the input image
+#     """
+#     h, w, _ = im.shape
+#     pad_h = h//10
+#     pad_w = w//10
+#     h_array = np.zeros((h + pad_h*2), dtype=np.int32)
+#     w_array = np.zeros((w + pad_w*2), dtype=np.int32)
+#     for poly in polys:
+#         poly = np.round(poly, decimals=0).astype(np.int32)
+#         minx = np.min(poly[:, 0])
+#         maxx = np.max(poly[:, 0])
+#         w_array[minx+pad_w:maxx+pad_w] = 1
+#         miny = np.min(poly[:, 1])
+#         maxy = np.max(poly[:, 1])
+#         h_array[miny+pad_h:maxy+pad_h] = 1
+#     # ensure the cropped area not across a text
+#     h_axis = np.where(h_array == 0)[0]
+#     w_axis = np.where(w_array == 0)[0]
+#     if len(h_axis) == 0 or len(w_axis) == 0:
+#         return im, polys, tags
+#     for i in range(max_tries):
+#         xx = np.random.choice(w_axis, size=2)
+#         xmin = np.min(xx) - pad_w
+#         xmax = np.max(xx) - pad_w
+#         xmin = np.clip(xmin, 0, w-1)
+#         xmax = np.clip(xmax, 0, w-1)
+#         yy = np.random.choice(h_axis, size=2)
+#         ymin = np.min(yy) - pad_h
+#         ymax = np.max(yy) - pad_h
+#         ymin = np.clip(ymin, 0, h-1)
+#         ymax = np.clip(ymax, 0, h-1)
+#         if xmax - xmin < config.min_crop_side_ratio * w or ymax - ymin < config.min_crop_side_ratio * h:
+#             # area too small
+#             continue
+#         if polys.shape[0] != 0:
+#             poly_axis_in_area = (polys[:, :, 0] >= xmin) & (polys[:, :, 0] <= xmax) \
+#                                 & (polys[:, :, 1] >= ymin) & (polys[:, :, 1] <= ymax)
+#             selected_polys = np.where(np.sum(poly_axis_in_area, axis=1) == 4)[0]
+#         else:
+#             selected_polys = []
+#         if len(selected_polys) == 0:
+#             # no text in this area
+#             if crop_background:
+#                 return im[ymin:ymax+1, xmin:xmax+1, :], polys[selected_polys], tags[selected_polys]
+#             else:
+#                 continue
+#         im = im[ymin:ymax+1, xmin:xmax+1, :]
+#         polys = polys[selected_polys]
+#         tags = tags[selected_polys]
+#         polys[:, :, 0] -= xmin
+#         polys[:, :, 1] -= ymin
+#         return im, polys, tags
 #
+#     return im, polys, tags
+
+
+# def shrink_poly(poly, r):
+#     """
+#     fit a poly inside the origin poly, maybe bugs here...
+#     used for generate the score map
+#     """
+#     # shrink ratio
+#     R = 0.8
+#     # find the longer pair
+#     if np.linalg.norm(poly[0] - poly[1]) + np.linalg.norm(poly[2] - poly[3]) > \
+#                     np.linalg.norm(poly[0] - poly[3]) + np.linalg.norm(poly[1] - poly[2]):
+#         # first move (p0, p1), (p2, p3), then (p0, p3), (p1, p2)
+#         ## p0, p1
+#         theta = np.arctan2((poly[1][1] - poly[0][1]), (poly[1][0] - poly[0][0]))
+#         poly[0][0] += R * r[0] * np.cos(theta)
+#         poly[0][1] += R * r[0] * np.sin(theta)
+#         poly[1][0] -= R * r[1] * np.cos(theta)
+#         poly[1][1] -= R * r[1] * np.sin(theta)
+#         ## p2, p3
+#         theta = np.arctan2((poly[2][1] - poly[3][1]), (poly[2][0] - poly[3][0]))
+#         poly[3][0] += R * r[3] * np.cos(theta)
+#         poly[3][1] += R * r[3] * np.sin(theta)
+#         poly[2][0] -= R * r[2] * np.cos(theta)
+#         poly[2][1] -= R * r[2] * np.sin(theta)
+#         ## p0, p3
+#         theta = np.arctan2((poly[3][0] - poly[0][0]), (poly[3][1] - poly[0][1]))
+#         poly[0][0] += R * r[0] * np.sin(theta)
+#         poly[0][1] += R * r[0] * np.cos(theta)
+#         poly[3][0] -= R * r[3] * np.sin(theta)
+#         poly[3][1] -= R * r[3] * np.cos(theta)
+#         ## p1, p2
+#         theta = np.arctan2((poly[2][0] - poly[1][0]), (poly[2][1] - poly[1][1]))
+#         poly[1][0] += R * r[1] * np.sin(theta)
+#         poly[1][1] += R * r[1] * np.cos(theta)
+#         poly[2][0] -= R * r[2] * np.sin(theta)
+#         poly[2][1] -= R * r[2] * np.cos(theta)
+#     else:
+#         ## p0, p3
+#         # print poly
+#         theta = np.arctan2((poly[3][0] - poly[0][0]), (poly[3][1] - poly[0][1]))
+#         poly[0][0] += R * r[0] * np.sin(theta)
+#         poly[0][1] += R * r[0] * np.cos(theta)
+#         poly[3][0] -= R * r[3] * np.sin(theta)
+#         poly[3][1] -= R * r[3] * np.cos(theta)
+#         ## p1, p2
+#         theta = np.arctan2((poly[2][0] - poly[1][0]), (poly[2][1] - poly[1][1]))
+#         poly[1][0] += R * r[1] * np.sin(theta)
+#         poly[1][1] += R * r[1] * np.cos(theta)
+#         poly[2][0] -= R * r[2] * np.sin(theta)
+#         poly[2][1] -= R * r[2] * np.cos(theta)
+#         ## p0, p1
+#         theta = np.arctan2((poly[1][1] - poly[0][1]), (poly[1][0] - poly[0][0]))
+#         poly[0][0] += R * r[0] * np.cos(theta)
+#         poly[0][1] += R * r[0] * np.sin(theta)
+#         poly[1][0] -= R * r[1] * np.cos(theta)
+#         poly[1][1] -= R * r[1] * np.sin(theta)
+#         ## p2, p3
+#         theta = np.arctan2((poly[2][1] - poly[3][1]), (poly[2][0] - poly[3][0]))
+#         poly[3][0] += R * r[3] * np.cos(theta)
+#         poly[3][1] += R * r[3] * np.sin(theta)
+#         poly[2][0] -= R * r[2] * np.cos(theta)
+#         poly[2][1] -= R * r[2] * np.sin(theta)
+#     return poly
+
+
 # def generate_rbox(im_size, polys, tags):
 #     h, w = im_size
 #     poly_mask = np.zeros((h, w), dtype=np.uint8)
@@ -623,8 +791,8 @@ def restore_rectangle(origin, geometry):
 #             # angle
 #             geo_map[y, x, 4] = rotate_angle
 #     return score_map, geo_map, training_mask
-#
-#
+
+
 # def generator(input_size=512, batch_size=4, background_ratio=3./8,
 #               random_scale=np.array([0.5, 1, 2.0, 3.0]), vis=False):
 #     image_list = np.array(get_image_list(config.training_data_path))
@@ -756,253 +924,253 @@ def restore_rectangle(origin, geometry):
 #                 continue
 
 
-def generate_rbox(im_size, polys, tags):
-    w, h = im_size
-    poly_mask = np.zeros((h, w), dtype=np.uint8)
-    score_map = np.zeros((h, w), dtype=np.uint8)
-    geo_map = np.zeros((h, w, 5), dtype=np.float32)
-    # mask used during traning, to ignore some hard areas
-    training_mask = np.ones((h, w), dtype=np.uint8)
-    for poly_idx, poly_tag in enumerate(zip(polys, tags)):
-        poly = poly_tag[0]
-        tag = poly_tag[1]
+# def generate_rbox(im_size, polys, tags):
+#     w, h = im_size
+#     poly_mask = np.zeros((h, w), dtype=np.uint8)
+#     score_map = np.zeros((h, w), dtype=np.uint8)
+#     geo_map = np.zeros((h, w, 5), dtype=np.float32)
+#     # mask used during training, to ignore some hard areas
+#     training_mask = np.ones((h, w), dtype=np.uint8)
+#     for poly_idx, poly_tag in enumerate(zip(polys, tags)):
+#         poly = poly_tag[0]
+#         tag = poly_tag[1]
+#
+#         r = [None, None, None, None]
+#         for i in range(4):
+#             r[i] = min(np.linalg.norm(poly[i] - poly[(i + 1) % 4]),
+#                        np.linalg.norm(poly[i] - poly[(i - 1) % 4]))
+#         # score map
+#         shrunk_poly = shrink_poly(poly.copy(), r).astype(np.int32)[np.newaxis, :, :]
+#         cv2.fillPoly(score_map, shrunk_poly, 1)
+#         cv2.fillPoly(poly_mask, shrunk_poly, poly_idx + 1)
+#         # if the poly is too small, then ignore it during training
+#         poly_h = min(np.linalg.norm(poly[0] - poly[3]), np.linalg.norm(poly[1] - poly[2]))
+#         poly_w = min(np.linalg.norm(poly[0] - poly[1]), np.linalg.norm(poly[2] - poly[3]))
+#         if min(poly_h, poly_w) < config.min_text_size:
+#             cv2.fillPoly(training_mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
+#         if tag:
+#             cv2.fillPoly(training_mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
+#
+#         xy_in_poly = np.argwhere(poly_mask == (poly_idx + 1))
+#         # if geometry == 'RBOX':
+#         # 对任意两个顶点的组合生成一个平行四边形
+#         fitted_parallelograms = []
+#         for i in range(4):
+#             p0 = poly[i]
+#             p1 = poly[(i + 1) % 4]
+#             p2 = poly[(i + 2) % 4]
+#             p3 = poly[(i + 3) % 4]
+#             edge = fit_line([p0[0], p1[0]], [p0[1], p1[1]])
+#             backward_edge = fit_line([p0[0], p3[0]], [p0[1], p3[1]])
+#             forward_edge = fit_line([p1[0], p2[0]], [p1[1], p2[1]])
+#             if point_dist_to_line(p0, p1, p2) > point_dist_to_line(p0, p1, p3):
+#                 # 平行线经过p2
+#                 if edge[1] == 0:
+#                     edge_opposite = [1, 0, -p2[0]]
+#                 else:
+#                     edge_opposite = [edge[0], -1, p2[1] - edge[0] * p2[0]]
+#             else:
+#                 # 经过p3
+#                 if edge[1] == 0:
+#                     edge_opposite = [1, 0, -p3[0]]
+#                 else:
+#                     edge_opposite = [edge[0], -1, p3[1] - edge[0] * p3[0]]
+#             # move forward edge
+#             new_p0 = p0
+#             new_p1 = p1
+#             new_p2 = p2
+#             new_p3 = p3
+#             new_p2 = line_cross_point(forward_edge, edge_opposite)
+#             if point_dist_to_line(p1, new_p2, p0) > point_dist_to_line(p1, new_p2, p3):
+#                 # across p0
+#                 if forward_edge[1] == 0:
+#                     forward_opposite = [1, 0, -p0[0]]
+#                 else:
+#                     forward_opposite = [forward_edge[0], -1, p0[1] - forward_edge[0] * p0[0]]
+#             else:
+#                 # across p3
+#                 if forward_edge[1] == 0:
+#                     forward_opposite = [1, 0, -p3[0]]
+#                 else:
+#                     forward_opposite = [forward_edge[0], -1, p3[1] - forward_edge[0] * p3[0]]
+#             new_p0 = line_cross_point(forward_opposite, edge)
+#             new_p3 = line_cross_point(forward_opposite, edge_opposite)
+#             fitted_parallelograms.append([new_p0, new_p1, new_p2, new_p3, new_p0])
+#             # or move backward edge
+#             new_p0 = p0
+#             new_p1 = p1
+#             new_p2 = p2
+#             new_p3 = p3
+#             new_p3 = line_cross_point(backward_edge, edge_opposite)
+#             if point_dist_to_line(p0, p3, p1) > point_dist_to_line(p0, p3, p2):
+#                 # across p1
+#                 if backward_edge[1] == 0:
+#                     backward_opposite = [1, 0, -p1[0]]
+#                 else:
+#                     backward_opposite = [backward_edge[0], -1, p1[1] - backward_edge[0] * p1[0]]
+#             else:
+#                 # across p2
+#                 if backward_edge[1] == 0:
+#                     backward_opposite = [1, 0, -p2[0]]
+#                 else:
+#                     backward_opposite = [backward_edge[0], -1, p2[1] - backward_edge[0] * p2[0]]
+#             new_p1 = line_cross_point(backward_opposite, edge)
+#             new_p2 = line_cross_point(backward_opposite, edge_opposite)
+#             fitted_parallelograms.append([new_p0, new_p1, new_p2, new_p3, new_p0])
+#         areas = [Polygon(t).area for t in fitted_parallelograms]
+#         parallelogram = np.array(fitted_parallelograms[np.argmin(areas)][:-1], dtype=np.float32)
+#         # sort thie polygon
+#         parallelogram_coord_sum = np.sum(parallelogram, axis=1)
+#         min_coord_idx = np.argmin(parallelogram_coord_sum)
+#         parallelogram = parallelogram[
+#             [min_coord_idx, (min_coord_idx + 1) % 4, (min_coord_idx + 2) % 4, (min_coord_idx + 3) % 4]]
+#
+#         rectange = rectangle_from_parallelogram(parallelogram)
+#         rectange, rotate_angle = sort_rectangle(rectange)
+#
+#         p0_rect, p1_rect, p2_rect, p3_rect = rectange
+#         for y, x in xy_in_poly:
+#             point = np.array([x, y], dtype=np.float32)
+#             # top
+#             geo_map[y, x, 0] = point_dist_to_line(p0_rect, p1_rect, point)
+#             # right
+#             geo_map[y, x, 1] = point_dist_to_line(p1_rect, p2_rect, point)
+#             # down
+#             geo_map[y, x, 2] = point_dist_to_line(p2_rect, p3_rect, point)
+#             # left
+#             geo_map[y, x, 3] = point_dist_to_line(p3_rect, p0_rect, point)
+#             # angle
+#             geo_map[y, x, 4] = rotate_angle
+#     return score_map, geo_map, training_mask
 
-        r = [None, None, None, None]
-        for i in range(4):
-            r[i] = min(np.linalg.norm(poly[i] - poly[(i + 1) % 4]),
-                       np.linalg.norm(poly[i] - poly[(i - 1) % 4]))
-        # score map
-        shrunk_poly = shrink_poly(poly.copy(), r).astype(np.int32)[np.newaxis, :, :]
-        cv2.fillPoly(score_map, shrunk_poly, 1)
-        cv2.fillPoly(poly_mask, shrunk_poly, poly_idx + 1)
-        # if the poly is too small, then ignore it during training
-        poly_h = min(np.linalg.norm(poly[0] - poly[3]), np.linalg.norm(poly[1] - poly[2]))
-        poly_w = min(np.linalg.norm(poly[0] - poly[1]), np.linalg.norm(poly[2] - poly[3]))
-        if min(poly_h, poly_w) < config.min_text_size:
-            cv2.fillPoly(training_mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
-        if tag:
-            cv2.fillPoly(training_mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
 
-        xy_in_poly = np.argwhere(poly_mask == (poly_idx + 1))
-        # if geometry == 'RBOX':
-        # 对任意两个顶点的组合生成一个平行四边形
-        fitted_parallelograms = []
-        for i in range(4):
-            p0 = poly[i]
-            p1 = poly[(i + 1) % 4]
-            p2 = poly[(i + 2) % 4]
-            p3 = poly[(i + 3) % 4]
-            edge = fit_line([p0[0], p1[0]], [p0[1], p1[1]])
-            backward_edge = fit_line([p0[0], p3[0]], [p0[1], p3[1]])
-            forward_edge = fit_line([p1[0], p2[0]], [p1[1], p2[1]])
-            if point_dist_to_line(p0, p1, p2) > point_dist_to_line(p0, p1, p3):
-                # 平行线经过p2
-                if edge[1] == 0:
-                    edge_opposite = [1, 0, -p2[0]]
-                else:
-                    edge_opposite = [edge[0], -1, p2[1] - edge[0] * p2[0]]
-            else:
-                # 经过p3
-                if edge[1] == 0:
-                    edge_opposite = [1, 0, -p3[0]]
-                else:
-                    edge_opposite = [edge[0], -1, p3[1] - edge[0] * p3[0]]
-            # move forward edge
-            new_p0 = p0
-            new_p1 = p1
-            new_p2 = p2
-            new_p3 = p3
-            new_p2 = line_cross_point(forward_edge, edge_opposite)
-            if point_dist_to_line(p1, new_p2, p0) > point_dist_to_line(p1, new_p2, p3):
-                # across p0
-                if forward_edge[1] == 0:
-                    forward_opposite = [1, 0, -p0[0]]
-                else:
-                    forward_opposite = [forward_edge[0], -1, p0[1] - forward_edge[0] * p0[0]]
-            else:
-                # across p3
-                if forward_edge[1] == 0:
-                    forward_opposite = [1, 0, -p3[0]]
-                else:
-                    forward_opposite = [forward_edge[0], -1, p3[1] - forward_edge[0] * p3[0]]
-            new_p0 = line_cross_point(forward_opposite, edge)
-            new_p3 = line_cross_point(forward_opposite, edge_opposite)
-            fitted_parallelograms.append([new_p0, new_p1, new_p2, new_p3, new_p0])
-            # or move backward edge
-            new_p0 = p0
-            new_p1 = p1
-            new_p2 = p2
-            new_p3 = p3
-            new_p3 = line_cross_point(backward_edge, edge_opposite)
-            if point_dist_to_line(p0, p3, p1) > point_dist_to_line(p0, p3, p2):
-                # across p1
-                if backward_edge[1] == 0:
-                    backward_opposite = [1, 0, -p1[0]]
-                else:
-                    backward_opposite = [backward_edge[0], -1, p1[1] - backward_edge[0] * p1[0]]
-            else:
-                # across p2
-                if backward_edge[1] == 0:
-                    backward_opposite = [1, 0, -p2[0]]
-                else:
-                    backward_opposite = [backward_edge[0], -1, p2[1] - backward_edge[0] * p2[0]]
-            new_p1 = line_cross_point(backward_opposite, edge)
-            new_p2 = line_cross_point(backward_opposite, edge_opposite)
-            fitted_parallelograms.append([new_p0, new_p1, new_p2, new_p3, new_p0])
-        areas = [Polygon(t).area for t in fitted_parallelograms]
-        parallelogram = np.array(fitted_parallelograms[np.argmin(areas)][:-1], dtype=np.float32)
-        # sort thie polygon
-        parallelogram_coord_sum = np.sum(parallelogram, axis=1)
-        min_coord_idx = np.argmin(parallelogram_coord_sum)
-        parallelogram = parallelogram[
-            [min_coord_idx, (min_coord_idx + 1) % 4, (min_coord_idx + 2) % 4, (min_coord_idx + 3) % 4]]
-
-        rectange = rectangle_from_parallelogram(parallelogram)
-        rectange, rotate_angle = sort_rectangle(rectange)
-
-        p0_rect, p1_rect, p2_rect, p3_rect = rectange
-        for y, x in xy_in_poly:
-            point = np.array([x, y], dtype=np.float32)
-            # top
-            geo_map[y, x, 0] = point_dist_to_line(p0_rect, p1_rect, point)
-            # right
-            geo_map[y, x, 1] = point_dist_to_line(p1_rect, p2_rect, point)
-            # down
-            geo_map[y, x, 2] = point_dist_to_line(p2_rect, p3_rect, point)
-            # left
-            geo_map[y, x, 3] = point_dist_to_line(p3_rect, p0_rect, point)
-            # angle
-            geo_map[y, x, 4] = rotate_angle
-    return score_map, geo_map, training_mask
-
-
-def generator(input_size=512, batch_size=4, background_ratio=3./8,
-              random_scale=np.array([0.5, 1, 2.0, 3.0]), vis=False):
-    image_list = np.array(get_image_list(config.training_data_path_z440))
-    print('{} training images in {}'.format(
-        image_list.shape[0], config.training_data_path))
-    index = np.arange(0, image_list.shape[0])
-    while True:
-        np.random.shuffle(index)
-        images = []
-        image_fns = []
-        score_maps = []
-        geo_maps = []
-        training_masks = []
-        for i in index:
-            try:
-                im_fn = image_list[i]
-                im = Image.open(im_fn)
-                w, h = im.size
-                txt_fn = im_fn.replace(os.path.basename(im_fn).split('.')[1], 'txt')
-                if not os.path.exists(txt_fn):
-                    print('text file {} does not exists'.format(txt_fn))
-                    continue
-
-                text_polys, text_content, text_tags = load_annotation(txt_fn, im.size)
-
-                text_polys, text_tags = check_and_validate_polys(text_polys, text_tags, (h, w))
-
-                # CHANGE: SKIP SCALE AUGMENTATION
-                # # random scale this image
-                # rd_scale = np.random.choice(random_scale)
-                # im = im.resize((int(im.size[0] * rd_scale), int(im.size[1] * rd_scale)))
-                # # im = cv2.resize(im, dsize=None, fx=rd_scale, fy=rd_scale)
-                # text_polys *= rd_scale
-                # print rd_scale
-
-                # # random crop an area from image
-                # if np.random.rand() < background_ratio:
-                #     # crop background
-                #     im, text_polys, text_tags = crop_area(im, text_polys, text_tags, crop_background=True)
-                #     if text_polys.shape[0] > 0:
-                #         # cannot find background
-                #         continue
-                #     # pad and resize image
-                #     new_h, new_w, _ = im.shape
-                #     max_h_w_i = np.max([new_h, new_w, input_size])
-                #     im_padded = np.zeros((max_h_w_i, max_h_w_i, 3), dtype=np.uint8)
-                #     im_padded[:new_h, :new_w, :] = im.copy()
-                #     im = im_padded.resize((input_size, input_size))
-                #     # im = cv2.resize(im_padded, dsize=(input_size, input_size))
-                #     score_map = np.zeros((input_size, input_size), dtype=np.uint8)
-                #     geo_map_channels = 5 # if FLAGS.geometry == 'RBOX' else 8
-                #     geo_map = np.zeros((input_size, input_size, geo_map_channels), dtype=np.float32)
-                #     training_mask = np.ones((input_size, input_size), dtype=np.uint8)
-                # else:
-                #     im, text_polys, text_tags = crop_area(im, text_polys, text_tags, crop_background=False)
-                #     if text_polys.shape[0] == 0:
-                #         continue
-                #     w, h = im.size
-                #     # h, w, _ = im.shape
-                #
-                #     # pad the image to the training input size or the longer side of image
-                #     new_w, new_h = im.size
-                #     # new_h, new_w, _ = im.shape
-                #     max_h_w_i = np.max([new_h, new_w, input_size])
-                #     im_padded = np.zeros((max_h_w_i, max_h_w_i, 3), dtype=np.uint8)
-                #     im_padded[:new_h, :new_w, :] = im.copy()
-                #     im = im_padded
-                #     # resize the image to input size
-                #     new_h, new_w, _ = im.shape
-                #     resize_h = input_size
-                #     resize_w = input_size
-                #     im = im.resize((resize_w, resize_h))
-                #     # im = cv2.resize(im, dsize=(resize_w, resize_h))
-                #     resize_ratio_3_x = resize_w/float(new_w)
-                #     resize_ratio_3_y = resize_h/float(new_h)
-                #     text_polys[:, :, 0] *= resize_ratio_3_x
-                #     text_polys[:, :, 1] *= resize_ratio_3_y
-                #     new_h, new_w, _ = im.shape
-                #     score_map, geo_map, training_mask = generate_rbox((new_h, new_w), text_polys, text_tags)
-                score_map, geo_map, training_mask = generate_rbox(im.size, text_polys, text_tags)
-                if vis:
-                    fig, axs = plt.subplots(3, 2, figsize=(20, 30))
-                    axs[0, 0].imshow(im[:, :, ::-1])
-                    axs[0, 0].set_xticks([])
-                    axs[0, 0].set_yticks([])
-                    for poly in text_polys:
-                        poly_h = min(abs(poly[3, 1] - poly[0, 1]), abs(poly[2, 1] - poly[1, 1]))
-                        poly_w = min(abs(poly[1, 0] - poly[0, 0]), abs(poly[2, 0] - poly[3, 0]))
-                        axs[0, 0].add_artist(Patches.Polygon(
-                            poly, facecolor='none', edgecolor='green', linewidth=2, linestyle='-', fill=True))
-                        axs[0, 0].text(poly[0, 0], poly[0, 1], '{:.0f}-{:.0f}'.format(poly_h, poly_w), color='purple')
-                    axs[0, 1].imshow(score_map[::, ::])
-                    axs[0, 1].set_xticks([])
-                    axs[0, 1].set_yticks([])
-                    axs[1, 0].imshow(geo_map[::, ::, 0])
-                    axs[1, 0].set_xticks([])
-                    axs[1, 0].set_yticks([])
-                    axs[1, 1].imshow(geo_map[::, ::, 1])
-                    axs[1, 1].set_xticks([])
-                    axs[1, 1].set_yticks([])
-                    axs[2, 0].imshow(geo_map[::, ::, 2])
-                    axs[2, 0].set_xticks([])
-                    axs[2, 0].set_yticks([])
-                    axs[2, 1].imshow(training_mask[::, ::])
-                    axs[2, 1].set_xticks([])
-                    axs[2, 1].set_yticks([])
-                    plt.tight_layout()
-                    plt.show()
-                    plt.close()
-
-                images.append(im)
-                image_fns.append(im_fn)
-                score_maps.append(score_map[::4, ::4, np.newaxis].astype(np.float32))
-                geo_maps.append(geo_map[::4, ::4, :].astype(np.float32))
-                training_masks.append(training_mask[::4, ::4, np.newaxis].astype(np.float32))
-
-                if len(images) == batch_size:
-                    return images, image_fns, score_maps, geo_maps, training_masks  # yield
-                    images = []
-                    image_fns = []
-                    score_maps = []
-                    geo_maps = []
-                    training_masks = []
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                continue
+# def generator(input_size=512, batch_size=4, background_ratio=3./8,
+#               random_scale=np.array([0.5, 1, 2.0, 3.0]), vis=False):
+#     image_list = np.array(get_image_list(config.training_data_path_z440))
+#     print('{} training images in {}'.format(
+#         image_list.shape[0], config.training_data_path))
+#     index = np.arange(0, image_list.shape[0])
+#     while True:
+#         np.random.shuffle(index)
+#         images = []
+#         image_fns = []
+#         score_maps = []
+#         geo_maps = []
+#         training_masks = []
+#         for i in index:
+#             try:
+#                 im_fn = image_list[i]
+#                 im = Image.open(im_fn)
+#                 w, h = im.size
+#                 txt_fn = im_fn.replace(os.path.basename(im_fn).split('.')[1], 'txt')
+#                 if not os.path.exists(txt_fn):
+#                     print('text file {} does not exists'.format(txt_fn))
+#                     continue
+#
+#                 text_polys, text_content, text_tags = load_annotation(txt_fn, im.size)
+#
+#                 text_polys, text_tags = check_and_validate_polys(text_polys, text_tags, (h, w))
+#
+#                 # CHANGE: SKIP SCALE AUGMENTATION
+#                 # # random scale this image
+#                 # rd_scale = np.random.choice(random_scale)
+#                 # im = im.resize((int(im.size[0] * rd_scale), int(im.size[1] * rd_scale)))
+#                 # # im = cv2.resize(im, dsize=None, fx=rd_scale, fy=rd_scale)
+#                 # text_polys *= rd_scale
+#                 # print rd_scale
+#
+#                 # # random crop an area from image
+#                 # if np.random.rand() < background_ratio:
+#                 #     # crop background
+#                 #     im, text_polys, text_tags = crop_area(im, text_polys, text_tags, crop_background=True)
+#                 #     if text_polys.shape[0] > 0:
+#                 #         # cannot find background
+#                 #         continue
+#                 #     # pad and resize image
+#                 #     new_h, new_w, _ = im.shape
+#                 #     max_h_w_i = np.max([new_h, new_w, input_size])
+#                 #     im_padded = np.zeros((max_h_w_i, max_h_w_i, 3), dtype=np.uint8)
+#                 #     im_padded[:new_h, :new_w, :] = im.copy()
+#                 #     im = im_padded.resize((input_size, input_size))
+#                 #     # im = cv2.resize(im_padded, dsize=(input_size, input_size))
+#                 #     score_map = np.zeros((input_size, input_size), dtype=np.uint8)
+#                 #     geo_map_channels = 5 # if FLAGS.geometry == 'RBOX' else 8
+#                 #     geo_map = np.zeros((input_size, input_size, geo_map_channels), dtype=np.float32)
+#                 #     training_mask = np.ones((input_size, input_size), dtype=np.uint8)
+#                 # else:
+#                 #     im, text_polys, text_tags = crop_area(im, text_polys, text_tags, crop_background=False)
+#                 #     if text_polys.shape[0] == 0:
+#                 #         continue
+#                 #     w, h = im.size
+#                 #     # h, w, _ = im.shape
+#                 #
+#                 #     # pad the image to the training input size or the longer side of image
+#                 #     new_w, new_h = im.size
+#                 #     # new_h, new_w, _ = im.shape
+#                 #     max_h_w_i = np.max([new_h, new_w, input_size])
+#                 #     im_padded = np.zeros((max_h_w_i, max_h_w_i, 3), dtype=np.uint8)
+#                 #     im_padded[:new_h, :new_w, :] = im.copy()
+#                 #     im = im_padded
+#                 #     # resize the image to input size
+#                 #     new_h, new_w, _ = im.shape
+#                 #     resize_h = input_size
+#                 #     resize_w = input_size
+#                 #     im = im.resize((resize_w, resize_h))
+#                 #     # im = cv2.resize(im, dsize=(resize_w, resize_h))
+#                 #     resize_ratio_3_x = resize_w/float(new_w)
+#                 #     resize_ratio_3_y = resize_h/float(new_h)
+#                 #     text_polys[:, :, 0] *= resize_ratio_3_x
+#                 #     text_polys[:, :, 1] *= resize_ratio_3_y
+#                 #     new_h, new_w, _ = im.shape
+#                 #     score_map, geo_map, training_mask = generate_rbox((new_h, new_w), text_polys, text_tags)
+#                 score_map, geo_map, training_mask = generate_rbox(im.size, text_polys, text_tags)
+#                 if vis:
+#                     fig, axs = plt.subplots(3, 2, figsize=(20, 30))
+#                     axs[0, 0].imshow(im[:, :, ::-1])
+#                     axs[0, 0].set_xticks([])
+#                     axs[0, 0].set_yticks([])
+#                     for poly in text_polys:
+#                         poly_h = min(abs(poly[3, 1] - poly[0, 1]), abs(poly[2, 1] - poly[1, 1]))
+#                         poly_w = min(abs(poly[1, 0] - poly[0, 0]), abs(poly[2, 0] - poly[3, 0]))
+#                         axs[0, 0].add_artist(Patches.Polygon(
+#                             poly, facecolor='none', edgecolor='green', linewidth=2, linestyle='-', fill=True))
+#                         axs[0, 0].text(poly[0, 0], poly[0, 1], '{:.0f}-{:.0f}'.format(poly_h, poly_w), color='purple')
+#                     axs[0, 1].imshow(score_map[::, ::])
+#                     axs[0, 1].set_xticks([])
+#                     axs[0, 1].set_yticks([])
+#                     axs[1, 0].imshow(geo_map[::, ::, 0])
+#                     axs[1, 0].set_xticks([])
+#                     axs[1, 0].set_yticks([])
+#                     axs[1, 1].imshow(geo_map[::, ::, 1])
+#                     axs[1, 1].set_xticks([])
+#                     axs[1, 1].set_yticks([])
+#                     axs[2, 0].imshow(geo_map[::, ::, 2])
+#                     axs[2, 0].set_xticks([])
+#                     axs[2, 0].set_yticks([])
+#                     axs[2, 1].imshow(training_mask[::, ::])
+#                     axs[2, 1].set_xticks([])
+#                     axs[2, 1].set_yticks([])
+#                     plt.tight_layout()
+#                     plt.show()
+#                     plt.close()
+#
+#                 images.append(im)
+#                 image_fns.append(im_fn)
+#                 score_maps.append(score_map[::4, ::4, np.newaxis].astype(np.float32))
+#                 geo_maps.append(geo_map[::4, ::4, :].astype(np.float32))
+#                 training_masks.append(training_mask[::4, ::4, np.newaxis].astype(np.float32))
+#
+#                 if len(images) == batch_size:
+#                     return images, image_fns, score_maps, geo_maps, training_masks  # yield
+#                     images = []
+#                     image_fns = []
+#                     score_maps = []
+#                     geo_maps = []
+#                     training_masks = []
+#             except Exception as e:
+#                 import traceback
+#                 traceback.print_exc()
+#                 continue
 
 
 # def get_batch(num_workers, **kwargs):
@@ -1147,5 +1315,4 @@ if __name__ == '__main__':
         # img, o = resize_image(img, 3200)
         # print(img.size)
         # img.show()
-        gb = get_batch(1)
-        data = next(gb)
+        pass
