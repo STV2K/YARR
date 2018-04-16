@@ -147,7 +147,7 @@ def train():
             summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
             batch_size = config.FLAGS.batch_size
 
-            step = 2400
+            step = 1
             while_flag = True
             while(while_flag):
 
@@ -171,7 +171,7 @@ def train():
                 tf.logging.info('%s: Step %d: NegtiveLoss = %.2f' % (datetime.now(), step, nloss))#sum_nloss / (batch_size - flag)))
                 tf.logging.info('%s: Step %d: LocalizationLoss = %.2f' % (datetime.now(), step, lcloss))#sum_lcloss / (batch_size - flag)))
 
-                if step % 100 == 0:
+                if step % 200 == 0:
                     saver.save(sess, save_dir + 'stvnet.ckpt', global_step=step)
                 step += 1
 

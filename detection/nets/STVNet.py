@@ -466,11 +466,11 @@ def tf_ssd_bboxes_decode_layer(feat_localizations,
       yref_off, xref_off, _, _ = anchors_layer_offset
       expand_size = tf.zeros((href.size), dtype=tf.float32)
       yref -= expand_size
-      xref -= expand_size
+      #xref -= expand_size
       yref_off -= expand_size
       #xref_off -= expand_size
       yref = tf.concat([yref, yref_off], axis=-1)
-      xref = tf.concat([xref, xref], axis=-1)
+      #xref = tf.concat([xref, xref], axis=-1)
       href = tf.concat([href, href], axis=-1)
       wref = tf.concat([wref, wref], axis=-1)
 
@@ -678,7 +678,7 @@ def tf_ssd_bboxes_encode_layer(labels,
       ymin_off = yref_off - href / 2.
       ymax_off = yref_off + href / 2.
       yref = tf.concat([ymin + href / 2., ymin_off + href / 2.], axis=-1)
-      xref = tf.concat([xmin + href / 2., xmin + href / 2.], axis=-1)
+      #xref = tf.concat([xmin + href / 2., xmin + href / 2.], axis=-1)
 
       ymin = tf.concat([ymin, ymin_off], axis=-1)
       ymax = tf.concat([ymax, ymax_off], axis=-1)

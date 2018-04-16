@@ -13,8 +13,9 @@ import matplotlib.pyplot as plt
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_test/'
-#ICDAR_Path='/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_test_images/'
-img_name = 'STV2K_ts_0073.jpg' #'img_243.jpg'
+ICDAR_Path='/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_test_images/'
+img_name = 'img_107.jpg' #'STV2K_ts_0339.jpg' #'img_243.jpg'
+PATH = ICDAR_Path
 
 img_width = config.FLAGS.input_size_width
 img_height = config.FLAGS.input_size_height
@@ -57,7 +58,7 @@ def test(img_name):
     with tf.Graph().as_default():
         # STVNet.redefine_params(img_width, img_height)
 
-        im, ori_width, ori_height = get_image(STV2K_Path + img_name)
+        im, ori_width, ori_height = get_image(PATH + img_name)
         #polys,_ = data_utils.load_annotation(STV2K_Path + img_name.replace('.jpg', '.txt'))
 
         label = tf.placeholder(tf.int64, shape=[None], name='labels')
@@ -100,7 +101,7 @@ def test(img_name):
                                       feed_dict={inputs: [im]})
                                       #label: gt_labels,
                                       #bboxes: gt_bboxes})
-            img = Image.open(STV2K_Path + img_name)
+            img = Image.open(PATH + img_name)
             img = np.array(img)
 
             # img = np.copy(im)
@@ -108,7 +109,7 @@ def test(img_name):
             # fig = plt.figure(figsize=(12, 12))
             # plt.imshow(img)
             result_img = Image.fromarray(np.uint8(img))
-            result_img.save('results/offset/result-5200-' + img_name)
+            result_img.save('results/offset/result-v2-8800-' + img_name)
             #print('positive loss: ', p_loss)
             #print('negtive loss: ', n_loss)
             #print('localisation loss: ', lc_loss)
