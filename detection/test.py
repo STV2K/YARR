@@ -17,6 +17,10 @@ ICDAR_Path='/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_test_images/'
 img_name = 'img_107.jpg' #'STV2K_ts_0339.jpg' #'img_243.jpg'
 PATH = ICDAR_Path
 
+generate_pic_path = './results/icdar/images/'
+generate_txt_path = './results/icdar/texts/'
+generate_threshold = 0.1
+
 img_width = config.FLAGS.input_size_width
 img_height = config.FLAGS.input_size_height
 input_size = (img_width, img_height)
@@ -114,11 +118,77 @@ def test(img_name):
             #print('negtive loss: ', n_loss)
             #print('localisation loss: ', lc_loss)
 
+
+def test_all(dir_path):
+    tf.logging.set_verbosity(tf.logging.INFO)
+    with tf.Graph().as_default():
+
+        inputs = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='inputs')
+
+        anchors = STVNet.ssd_anchors_all_layers()
+        predictions, localisations, logits, end_points = STVNet.model(inputs)
+
+        pre_locals = STVNet.tf_ssd_bboxes_decode(localisations, anchors, offset=True, scope='bboxes_decode')
+        pre_scores, pre_bboxes = STVNet.detected_bboxes(predictions, pre_locals,
+                                                        select_threshold=config.FLAGS.select_threshold,
+                                                        nms_threshold=config.FLAGS.nms_threshold,
+                                                        clipping_bbox=None,
+                                                        top_k=config.FLAGS.select_top_k,
+                                                        keep_top_k=config.FLAGS.keep_top_k)
+
+        saver = tf.train.Saver()
+        tf_config = tf.ConfigProto()
+        tf_config.gpu_options.allow_growth = True
+        with tf.Session(config=tf_config) as sess:
+            sess.run(tf.global_variables_initializer())
+            sess.run(tf.local_variables_initializer())
+            
+            if ckpt_path:
+                saver.restore(sess, ckpt_path)
+            else:
+                saver.restore(sess, model_dir + 'stvnet.ckpt-18100')
+
+            for root, dirnames, filenames in os.walk(dir_path):
+                for filename in filenames:
+                    if not filename.endwith('.jpg'):
+                        continue
+
+                    im, ori_width, ori_height = get_image(dir_path + filename)
+                    pre_s, pre_box = sess.run([pre_scores, pre_bboxes],
+                                              feed_dict={inputs: [im]})
+
+                    img = Image.open(dir_path + filename)
+                    img = np.array(img)
+                    bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], generate_threshold, (31, 119, 180))
+                    result_img = Image.fromarray(np.uint8(img))
+                    result_img.save(generate_pic_path + filename)
+                    txt_generator(filename, pre_s[1][0], pre_box[1][0], generate_threshold)
+
+
+def txt_generator(filename, scores, bboxes, threshold):
+    txt_save_path = os.path.join(generate_txt_path, 'res_' + filename.split('.')[0]+'.txt')
+    txt_file = open(txt_save_path, 'wt')
+
+    for i in range(len(bboxes)):
+        bbox = bboxes[i]
+        score = scores[i]
+        if score < threshold:
+            continue
+        ymin = bbox[0]
+        xmin = bbox[1]
+        ymax = bbox[2]
+        xmax = bbox[3]
+        result_str = xmin+','+ymin+','+xmax+','+ymin+','+xmax+','+ymax+','+xmin+','+ymax+'\r''\n'
+        txt_file.write(result_str)
+
+    txt_file.close()
+
+
         
-def bboxes_draw_on_img(img, scores, bboxes, color, thickness=5):
+def bboxes_draw_on_img(img, scores, bboxes, threshold, color, thickness=5):
     shape = img.shape
     for i in range(len(bboxes)):
-        if(scores[i] > 0.5):
+        if(scores[i] > threshold):
             color = (255, 255, 0)
         else:
             color = (31, 119, 180)
