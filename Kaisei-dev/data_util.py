@@ -112,8 +112,8 @@ def check_and_validate_polys(polys, tags, tag_bools, img_size):
 
 def point_dist_to_line(p1, p2, p3):
     # compute the distance from p3 to p1~p2
-    print("Computing " + str(p3) + " to line " + str(p1) + str(p2))
-    print("Get: " + str(np.linalg.norm(np.cross(p2 - p1, p1 - p3)) / np.linalg.norm(p2 - p1)))
+    # print("Computing " + str(p3) + " to line " + str(p1) + str(p2))
+    # print("Get: " + str(np.linalg.norm(np.cross(p2 - p1, p1 - p3)) / np.linalg.norm(p2 - p1)))
     return np.linalg.norm(np.cross(p2 - p1, p1 - p3)) / np.linalg.norm(p2 - p1)
 
 
@@ -331,15 +331,15 @@ def restore_rectangle(origin, geometry):
 
 def generate_rbox(im_size, polys, tag_bools, tag_content):
     w, h = im_size
-    poly_mask = np.zeros((w, h), dtype=np.uint8)
-    score_map = np.zeros((w, h), dtype=np.uint8)
-    geo_map = np.zeros((5, w, h), dtype=np.float32)
+    poly_mask = np.zeros((h, w), dtype=np.uint8)
+    score_map = np.zeros((h, w), dtype=np.uint8)
+    geo_map = np.zeros((5, h, w), dtype=np.float32)
     # mask used during training to ignore some hard areas
-    training_mask = np.ones((w, h), dtype=np.uint8)
-    for poly_idx, poly_tag, poly_content in enumerate(zip(polys, tag_bools, tag_content)):
+    training_mask = np.ones((h, w), dtype=np.uint8)
+    for poly_idx, poly_tag in enumerate(zip(polys, tag_bools, tag_content)):
         poly = poly_tag[0]
         tag = poly_tag[1]
-
+        poly_content = poly_tag[2]
         r = [None, None, None, None]
         for i in range(4):
             r[i] = min(np.linalg.norm(poly[i] - poly[(i + 1) % 4]),
@@ -352,10 +352,16 @@ def generate_rbox(im_size, polys, tag_bools, tag_content):
         # if the poly is too small, then ignore it during training
         poly_h = min(np.linalg.norm(poly[0] - poly[3]), np.linalg.norm(poly[1] - poly[2]))
         poly_w = min(np.linalg.norm(poly[0] - poly[1]), np.linalg.norm(poly[2] - poly[3]))
-        if min(poly_h, poly_w) < config.min_text_size or \
-                poly_h * poly_w // len(poly_content) < config.min_text_size:
-            cv2.fillPoly(training_mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
         if tag:
+            if min(poly_h, poly_w) < config.min_text_size:
+                # print("Ignore for min_text_size: " + poly_content + "(" +
+                #       str(min(poly_h, poly_w)) + ")[" + str(poly_idx) + "]")
+                cv2.fillPoly(training_mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
+            elif poly_h * poly_w // len(poly_content) < config.min_char_avgsize:
+                # print("Ignore for min_char_avgsize: " + poly_content + "(" +
+                #       str(poly_h * poly_w // len(poly_content)) + ")[" + str(poly_idx) + "]")
+                cv2.fillPoly(training_mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
+        else:
             cv2.fillPoly(training_mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
 
         xy_in_poly = np.argwhere(poly_mask == (poly_idx + 1))
@@ -528,7 +534,7 @@ def load_data(file_path=config.demo_data_path):
         img, resize_ratio = resize_image(img, config.max_side_len)
         label_quad, label_content, label_bool = load_annotation(label_path, resize_ratio)
         vali_quad, vali_cont, vali_bool = check_and_validate_polys(label_quad, label_content, label_bool, img.size)
-        score_map, geo_map, training_mask = generate_rbox(img.size, vali_quad, vali_bool)
+        score_map, geo_map, training_mask = generate_rbox(img.size, vali_quad, vali_bool, vali_cont)
         ret.append([img_filename, img, resize_ratio,
                     vali_quad, vali_cont, vali_bool,
                     score_map, geo_map, training_mask])

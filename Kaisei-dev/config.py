@@ -14,8 +14,8 @@ __STV2KImageHeight = 3264
 
 # Data and Augmentation Settings
 min_crop_side_ratio = 0.2
-min_text_size = 20
-min_char_avgsize = 100
+min_text_size = 7
+min_char_avgsize = 25
 max_side_len = 1280
 
 # Detection Branch Settings
