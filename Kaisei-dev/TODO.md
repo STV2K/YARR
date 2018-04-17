@@ -21,10 +21,10 @@ Using PyTorch.
 #### Det Branch: EAST Trans, visualize layers and CUDA Enable Check (12-13 Apr)
 Cuda: `Variable.cuda()` and `model.cuda()`.  
 However PyTorch 0.3.1 no longer support old GPUs like Quadro K4200 (3.0).
-#### DataLoader & Helper Func (13 Apr + 1)
+#### DataLoader & Helper Func (13 Apr + 4)
 Start Detection Branch Experiment  
 Confirm Rec Progress - Dict...  
-#### Rec Branch: CRNN Trans (16 Apr)
-#### RoI Op, Loss Design and Optimizer(18 Apr)
-#### Training, Augmentation, OHEM etc. (18 Apr ~)
+#### Rec Branch: CRNN Trans (16 Apr + 1)
+#### RoI Op, Loss Design and Optimizer(19 Apr)
+#### Training, Augmentation(Recognition), OHEM etc. (19 Apr ~)
 #### OPTIONAL: add crayon

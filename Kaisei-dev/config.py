@@ -15,12 +15,14 @@ __STV2KImageHeight = 3264
 # Data and Augmentation Settings
 min_crop_side_ratio = 0.2
 min_text_size = 20
+min_char_avgsize = 100
 max_side_len = 1280
 
 # Detection Branch Settings
-TEXT_SCALE = 1024  # Decides the receptive field of detection branch
-
-
+text_scale = 1024  # Decides the receptive field of detection branch
+score_map_threshold = 0.8
+box_threshold = 0.1
+nms_threshold = 0.2
 
 
 

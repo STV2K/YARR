@@ -4,6 +4,9 @@
 
 import models
 import torchvision
+import config
+
+gpus = list(range(len(config.gpu_list.split(','))))
 
 
 def train():

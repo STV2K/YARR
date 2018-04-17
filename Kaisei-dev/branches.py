@@ -36,7 +36,7 @@ class DetectionBranch(nn.Module):
         score_map = nnfunc.sigmoid(self.conv1_1(x))
         # Angle are limited to [-45, 45]; for vertical ones, the angle is 0
         angle_map = (nnfunc.sigmoid(self.conv1_1(x)) - 0.5) * np.pi / 2
-        geo_map = nnfunc.sigmoid(self.conv1_4(x)) * config.TEXT_SCALE
+        geo_map = nnfunc.sigmoid(self.conv1_4(x)) * config.text_scale
 
         geometry_map = torch.cat((geo_map, angle_map), dim=1)
 
