@@ -9,7 +9,7 @@ import config
 gpus = list(range(len(config.gpu_list.split(','))))
 
 
-def train():
+def detection_train():
     # TODO: checkpoint, gpu_config, restoring
     input_images = []
     input_score_maps = []

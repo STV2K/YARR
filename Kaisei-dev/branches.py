@@ -15,7 +15,7 @@ from layers import *
 
 class DetectionBranch(nn.Module):
     """
-    EAST-like Detection Branch.
+    EAST-like detection branch.
     """
 
     def __init__(self):
@@ -41,6 +41,12 @@ class DetectionBranch(nn.Module):
         geometry_map = torch.cat((geo_map, angle_map), dim=1)
 
         return score_map, geometry_map
+
+
+# class RecognitionBranch(nn.Module):
+#     """
+#     TODO: FOTS/CRNN-like recognition branch.
+#     """
 
 
 class Kaisei(nn.Module):

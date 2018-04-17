@@ -82,7 +82,7 @@ def detect(score_map, geo_map, timer, score_map_thresh=config.score_map_threshol
     xy_text = xy_text[np.argsort(xy_text[:, 0])]
     # restore
     start = time.time()
-    text_box_restored = du.restore_rectangle(xy_text[:, ::-1]*4, geo_map[xy_text[:, 0], xy_text[:, 1], :]) # N*4*2
+    text_box_restored = du.restore_rectangle(xy_text[:, ::-1]*4, geo_map[xy_text[:, 0], xy_text[:, 1], :])  # N*4*2
     print('{} text boxes before nms'.format(text_box_restored.shape[0]))
     boxes = np.zeros((text_box_restored.shape[0], 9), dtype=np.float32)
     boxes[:, :8] = text_box_restored.reshape((-1, 8))
@@ -90,7 +90,7 @@ def detect(score_map, geo_map, timer, score_map_thresh=config.score_map_threshol
     timer['restore'] = time.time() - start
     # nms part
     start = time.time()
-    # boxes = nms_locality.nms_locality(boxes.astype(np.float64), nms_thres)
+    # boxes = nms_locality.nms_locality(boxes.astype(np.float64), nms_thresh)
     boxes = lanms.merge_quadrangle_n9(boxes.astype('float32'), nms_thresh)
     timer['nms'] = time.time() - start
 

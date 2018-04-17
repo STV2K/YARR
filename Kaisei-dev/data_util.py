@@ -5,9 +5,17 @@
 import os
 import sys
 import cv2
+# import six
+import random
 import torch
 import numpy as np
+import torchvision.transforms as transforms
 from PIL import Image
+from torch.utils.data import Dataset
+from torch.utils.data import DataLoader
+from torch.utils.data.dataloader import DataLoaderIter
+# from torch.utils.data import sampler
+
 
 if sys.platform == "darwin":
     import matplotlib as mil
@@ -19,10 +27,13 @@ import config
 
 
 # Tensor Transformation
-def image_normalize(images, means=(123.68 / 255, 116.78 / 255, 103.94 / 255)):
+def image_normalize(images, means=(112.80 / 255, 106.65 / 255, 101.02 / 255)):
     """
     Image normalization used in EAST.
-    TODO: determine the means accord to our dataset.
+    TODO: calc the stds accord to our dataset and use torchvision's transformation.
+    TODO_DONE: determine the means accord to our dataset.
+    EAST means: [123.68, 116.78, 103.94] -- ICDAR?
+    STV2K Train means: [112.7965, 106.6500, 101.0181]
     TODO_DONE: Subtract with broadcasting maybe?
     """
     # chan_0 = images.narrow(1, 0, 1)
@@ -216,6 +227,15 @@ def rectangle_from_parallelogram(poly):
 
             new_p2 = line_cross_point(p1p2, p1p2_vertical)
             return np.array([new_p0, p1, new_p2, p3], dtype=np.float32)
+
+
+def sort_poly_points(poly):
+    min_axis = np.argmin(np.sum(poly, axis=1))
+    poly = poly[[min_axis, (min_axis + 1) % 4, (min_axis + 2) % 4, (min_axis + 3) % 4]]
+    if abs(poly[0, 0] - poly[1, 0]) > abs(poly[0, 1] - poly[1, 1]):
+        return poly
+    else:
+        return poly[[0, 3, 2, 1]]
 
 
 def sort_rectangle(poly):
@@ -552,13 +572,99 @@ def exchange_point_axis(p):
     return np.array([p[1], p[0]])
 
 
-def sort_poly_points(poly):
-    min_axis = np.argmin(np.sum(poly, axis=1))
-    poly = poly[[min_axis, (min_axis + 1) % 4, (min_axis + 2) % 4, (min_axis + 3) % 4]]
-    if abs(poly[0, 0] - poly[1, 0]) > abs(poly[0, 1] - poly[1, 1]):
-        return poly
-    else:
-        return poly[[0, 3, 2, 1]]
+def calc_image_channel_mean(img_list):
+    sum_up = np.array([0., 0., 0.])
+    for img in img_list:
+        sample_sum = np.array([0, 0, 0])
+        im_array = np.array(Image.open(img))
+        sample_sum[0] += im_array[:, :, 0].sum()
+        sample_sum[1] += im_array[:, :, 1].sum()
+        sample_sum[2] += im_array[:, :, 2].sum()
+        sum_up += sample_sum / im_array.shape[0] / im_array.shape[1]
+    return sum_up / len(img_list)
+
+
+# PyTorch Warp-up
+# TODO: fix issue that default collate_fn cannot deal with various sized tensor, which requires turning into lists
+#       or to sample pictures for mini-batches in an aspect-ratio-respecting way
+def collate_fn(batch):
+    # Note that batch is a list
+    batch = list(map(list, zip(*batch)))  # transpose list of list
+    out = None
+    # You should know that batch[0] is a fixed-size tensor since you're using your customized Dataset
+    # reshape batch[0] as (N, H, W)
+    # batch[1] contains tensors of different sizes; just let it be a list.
+    # If your num_workers in DataLoader is bigger than 0
+    #     numel = sum([x.numel() for x in batch[0]])
+    #     storage = batch[0][0].storage()._new_shared(numel)
+    #     out = batch[0][0].new(storage)
+    batch[0] = torch.stack(batch[0], 0, out=out)
+    return batch
+
+
+class STV2KDetDataset(Dataset):
+
+    def __init__(self, path=config.training_data_path_z440):
+        self.image_list = get_image_list(path)
+        self.toTensor = transforms.ToTensor()
+
+    def __len__(self):
+        return len(self.image_list)
+
+    def __getitem__(self, index):
+        img_path = self.image_list[index]
+        img = Image.open(img_path)
+        img_filename = str(os.path.basename(img_path))
+        label_path = img_path.replace(img_filename.split('.')[1], 'txt')
+        img, resize_ratio = resize_image(img, config.max_side_len)
+        label_quad, label_content, label_bool = load_annotation(label_path, resize_ratio)
+        valid_quad, valid_cont, valid_bool = check_and_validate_polys(label_quad, label_content, label_bool, img.size)
+        score_map, geo_map, training_mask = generate_rbox(img.size, valid_quad, valid_bool, valid_cont)
+        # return img, valid_quad, valid_cont, score_map, geo_map, training_mask
+        return self.toTensor(img), torch.FloatTensor(score_map), \
+            torch.FloatTensor(geo_map), torch.FloatTensor(training_mask)
+
+
+class DataProvider:
+    def __init__(self, batch_size=8, is_cuda=False, num_workers=config.data_loader_worker_num,
+                 data_path=config.training_data_path_z440):
+        self.batch_size = batch_size
+        self.dataset = STV2KDetDataset(data_path)
+        self.is_cuda = is_cuda
+        self.data_iter = None
+        self.iteration = 0  # iteration num of current epoch
+        self.epoch = 0  # total epoch(s) finished
+        self.num_workers = num_workers
+
+    def build(self):
+        data_loader = DataLoader(self.dataset, batch_size=self.batch_size,
+                                 shuffle=True, num_workers=self.num_workers, drop_last=True)
+        self.data_iter = DataLoaderIter(data_loader)
+
+    def next(self):
+        if self.data_iter is None:
+            self.build()
+        try:
+            batch = self.data_iter.next()
+            self.iteration += 1
+            if self.is_cuda:
+                for i in range(len(batch)):
+                    if isinstance(batch[i], torch.Tensor):
+                        batch[i] = batch[i].cuda()
+            return batch
+
+        except StopIteration:  # Reload after one epoch
+            self.epoch += 1
+            self.build()
+            self.iteration = 1  # reset and return the 1st batch
+
+            batch = self.data_iter.next()
+            if self.is_cuda:
+                for i in range(len(batch)):
+                    if isinstance(batch[i], torch.Tensor):
+                        batch[i] = batch[i].cuda()
+            return batch
+
 
 # DEPRECATED
 # def crop_area(im, polys, tags, crop_background=False, max_tries=50):
