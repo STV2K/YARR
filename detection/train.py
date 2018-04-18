@@ -147,7 +147,7 @@ def train():
             summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
             batch_size = config.FLAGS.batch_size
 
-            step = 1
+            step = 8445
             while_flag = True
             while(while_flag):
 

@@ -14,13 +14,13 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_test/'
 ICDAR_Path='/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_test_images/'
-img_name = 'img_107.jpg' #'STV2K_ts_0339.jpg' #'img_243.jpg'
-PATH = ICDAR_Path
+img_name = 'STV2K_ts_0107.jpg' #'img_243.jpg'
+PATH = STV2K_Path
 
 test_all_path = ICDAR_Path
 generate_pic_path = './results/icdar/images/'
 generate_txt_path = './results/icdar/texts/'
-generate_threshold = 0.1
+generate_threshold = 0.05
 
 img_width = config.FLAGS.input_size_width
 img_height = config.FLAGS.input_size_height
@@ -110,11 +110,11 @@ def test(img_name):
             img = np.array(img)
 
             # img = np.copy(im)
-            bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], (31, 119, 180))
+            bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], generate_threshold, (31, 119, 180))
             # fig = plt.figure(figsize=(12, 12))
             # plt.imshow(img)
             result_img = Image.fromarray(np.uint8(img))
-            result_img.save('results/offset/result-v2-8800-' + img_name)
+            result_img.save('results/offset/result-v3-20600-' + img_name)
             #print('positive loss: ', p_loss)
             #print('negtive loss: ', n_loss)
             #print('localisation loss: ', lc_loss)
@@ -214,7 +214,7 @@ def bboxes_draw_on_img(img, scores, bboxes, threshold, color, thickness=5):
 
 
 if __name__ == '__main__':
-    #test(img_name)
+#    test(img_name)
     test_all(test_all_path)
     
 

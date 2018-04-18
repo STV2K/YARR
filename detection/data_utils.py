@@ -183,10 +183,11 @@ def load_annotation_STV2K(ano_path):
 def load_annotation(ano_path):
     polys = []
     tags = []
-    with open(ano_path, 'r', encoding="gbk") as file:
-        for line in file.read_lines():
+    with open(ano_path, 'r', encoding="utf-8-sig") as file:
+        for line in file.readlines():
             line = line.strip('\r\n')
             line = line.strip('\n')
+            line = line.strip(',')  # there is a ',' at the end of the line in some annotation files
             datas = line.split(',')
 
             if datas[-1] == '###':
@@ -196,7 +197,8 @@ def load_annotation(ano_path):
                 tags.append(True)
 
             nums = []
-            for data in datas[0:-1]:
+            #print(datas)
+            for data in datas[0:8]:
                 nums.append(int(data))
             x1, y1, x2, y2, x3, y3, x4, y4 = nums
             polys.append((x1, y1, x2, y2, x3, y3, x4, y4))
@@ -211,7 +213,7 @@ def process_image(filename):
     shape = im.shape
 
     #anno_filename = filename.replace('.jpg', '.txt')
-    anno_filename = train_gt_path + 'gt_' + filname.split('/')[-1].replace('jpg', 'txt')
+    anno_filename = train_gt_path + 'gt_' + filename.split('/')[-1].replace('jpg', 'txt')
     bboxes, tags = load_annotation(anno_filename)
 
     return image_data, shape, bboxes, tags
@@ -304,6 +306,7 @@ def run(output_dir, shuffling=False, name='icdar'):
                 sys.stdout.flush()
 
                 filename = filenames[i]
+#                sys.stdout.write('\r\n' + filename)
                 add_to_tfrecord(filename, tfrecord_writer)
                 i += 1
                 j += 1
@@ -316,13 +319,24 @@ def run(output_dir, shuffling=False, name='icdar'):
 # IMAGE_WIDTH = 300
 
 # filenames = '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord'
-train_filenames = ['/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord',
+stv2k_filenames = ['/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord',
                    '/media/data2/hcx_data/STV2KTF/STV2K_0001.tfrecord',
                    '/media/data2/hcx_data/STV2KTF/STV2K_0002.tfrecord',
                    '/media/data2/hcx_data/STV2KTF/STV2K_0003.tfrecord',
                    '/media/data2/hcx_data/STV2KTF/STV2K_0004.tfrecord',
                    '/media/data2/hcx_data/STV2KTF/STV2K_0005.tfrecord',
                    '/media/data2/hcx_data/STV2KTF/STV2K_0006.tfrecord']
+icdar_filenames = ['/media/data2/hcx_data/ICDARTF/icdar_0000.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0001.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0002.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0003.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0004.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0005.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0006.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0007.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0008.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0009.tfrecord']
+train_filenames = icdar_filenames
 val_filenames = ['/media/data2/hcx_data/STV2KTF/STV2K_0003.tfrecord']
 
 
@@ -460,3 +474,5 @@ def test_read():
 if __name__ == '__main__':
     #test_read()
     generate_tfrecord()
+    #image_data, shape, bboxes, difficults = process_image('/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_train_images/img_1.jpg')
+    #print(bboxes)
