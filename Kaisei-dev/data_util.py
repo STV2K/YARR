@@ -72,6 +72,25 @@ def resize_image(image, max_side_len):
     return im, (ratio_w, ratio_h)
 
 
+def resize_image_fixed_square(image, fixed_len=config.fixed_len):
+    """
+    Resize images to square of fixed_len. We use this as a compromise for training, since batch requires tensors of same
+    size. Also make sure fixed_len is a size multiple of 32 which is required by the network.
+    :param image: the original PIL image
+    :param fixed_len: limit of max image size to avoid out of memory in gpu
+    :return: the resized image and the resize ratio
+    """
+    w, h = image.size
+
+    fixed_len = fixed_len if fixed_len % 32 == 0 else (fixed_len // 32 - 1) * 32
+    im = image.resize((int(fixed_len), int(fixed_len)))  # , Image.BILINEAR)
+
+    ratio_h = fixed_len / float(h)
+    ratio_w = fixed_len / float(w)
+
+    return im, (ratio_w, ratio_h)
+
+
 # Computational Geometry
 def polygon_area(poly):
     """
@@ -551,7 +570,7 @@ def load_data(file_path=config.demo_data_path):
         img_filename = str(os.path.basename(img_path))
         # img_ori_size = img.size
         label_path = img_path.replace(img_filename.split('.')[1], 'txt')
-        img, resize_ratio = resize_image(img, config.max_side_len)
+        img, resize_ratio = resize_image_fixed_square(img, config.fixed_len)
         label_quad, label_content, label_bool = load_annotation(label_path, resize_ratio)
         vali_quad, vali_cont, vali_bool = check_and_validate_polys(label_quad, label_content, label_bool, img.size)
         score_map, geo_map, training_mask = generate_rbox(img.size, vali_quad, vali_bool, vali_cont)
@@ -585,8 +604,9 @@ def calc_image_channel_mean(img_list):
 
 
 # PyTorch Warp-up
-# TODO: fix issue that default collate_fn cannot deal with various sized tensor, which requires turning into lists
-#       or to sample pictures for mini-batches in an aspect-ratio-respecting way
+# COMPROMISED-TODO: fix issue that default collate_fn cannot deal with various sized tensor, which requires turning
+#  into lists or to sample pictures for mini-batches in an aspect-ratio-respecting way
+# COMPROMISE: we chose to resize all stv2k images to (1120, 1120) during training.
 def collate_fn(batch):
     # Note that batch is a list
     batch = list(map(list, zip(*batch)))  # transpose list of list
@@ -616,7 +636,7 @@ class STV2KDetDataset(Dataset):
         img = Image.open(img_path)
         img_filename = str(os.path.basename(img_path))
         label_path = img_path.replace(img_filename.split('.')[1], 'txt')
-        img, resize_ratio = resize_image(img, config.max_side_len)
+        img, resize_ratio = resize_image_fixed_square(img)
         label_quad, label_content, label_bool = load_annotation(label_path, resize_ratio)
         valid_quad, valid_cont, valid_bool = check_and_validate_polys(label_quad, label_content, label_bool, img.size)
         score_map, geo_map, training_mask = generate_rbox(img.size, valid_quad, valid_bool, valid_cont)
