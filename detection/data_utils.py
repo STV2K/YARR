@@ -103,6 +103,13 @@ def get_processed_imgs(images,
         cropped_image = resize_image(cropped_image, (300,300),
                                      method=tf.image.ResizeMethod.BILINEAR,
                                      align_corners=False)
+
+        result_img = Image.fromarray(np.uint8(cropped_image))
+        result_img.save('results/process/' + i + '.jpg')
+
+        print(cropped_labels)
+        print(cropped_bboxes)
+
         ret_images.append(cropped_image)
         ret_labels.append(cropped_labels)
         ret_bboxes.append(cropped_bboxes)
@@ -458,21 +465,79 @@ def test_read():
         print(y3_rs[0])
         print(y4_rs[0])
 
-        # for j in range(10):
-            # im = Image.fromarray(np.uint8(img[i]))
-            # im.save('out%d.jpg' % i)
-            # print(img[j, :, :, :].shape)
-            # print(x1s[j])
-            # print(bbox_nums[j])
-            # i += 1
-            # print(i, bbox_nums[j])
-
         coord.request_stop()
         coord.join(threads)
+
+def turn_into_bbox(x1, x2, x3, x4, y1, y2, y3, y4, num):
+    bboxes = []
+    for i in range(num):
+        x = [x1[i], x2[i], x3[i], x4[i]]
+        y = [y1[i], y2[i], y3[i], y4[i]]
+        xmin = min(x) / img_width
+        xmax = max(x) / img_width
+        ymin = min(y) / img_height
+        ymax = max(y) / img_height
+
+        if xmin < 0:
+            xmin = 0
+        if ymin < 0:
+            ymin = 0
+        if xmax > 1:
+            xmax = 1
+        if ymax > 1:
+            ymax = 1
+
+        bbox = [ymin, xmin, ymax, xmax]
+        bboxes.append(bbox)
+
+    return bboxes
+
+def generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num):
+    batch_bboxes = []
+    batch_labels = []
+    max_num = 0
+    for i in range(len(b_bbox_num)):
+        if max_num < b_bbox_num[i][0]:
+            max_num = b_bbox_num[i][0]
+
+    for i in range(len(b_bbox_num)):
+        bboxes = turn_into_bbox(b_x1[i], b_x2[i], b_x3[i], b_x4[i], b_y1[i], b_y2[i], b_y3[i], b_y4[i], b_bbox_num[i][0])
+        j = now_num = b_bbox_num[i][0]
+        while j < max_num:
+            bboxes.append([0., 0., 0., 0.])
+            j += 1
+        batch_bboxes.append(bboxes)
+
+        labels = [1 for j in range(now_num)]
+        labels = labels + [0 for j in range(max_num - now_num)]
+        batch_labels.append(labels)
+    # print(bboxes)
+
+    batch_labels = np.array(batch_labels)
+    batch_bboxes = np.array(batch_bboxes)
+    return batch_labels, batch_bboxes
+
+def test_process():
+    image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num = read_data(train=True)
+    
+
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        sess.run(tf.local_variables_initializer())
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(coord=coord)
+
+
+        b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
+                    sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
+        b_labels, b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
+
+        get_processed_imgs(b_image[0:2], b_labels[0:2], b_bboxes[0:2])
 
 
 if __name__ == '__main__':
     #test_read()
-    generate_tfrecord()
+    #generate_tfrecord()
+    test_process()
     #image_data, shape, bboxes, difficults = process_image('/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_train_images/img_1.jpg')
     #print(bboxes)
