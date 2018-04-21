@@ -6,11 +6,6 @@ import os
 import numpy as np
 from shapely.geometry import Polygon
 
-
-__STV2kImageWidth = 2448
-__STV2kImageHeight = 3264
-
-
 class LabelReader:
 
     @staticmethod
@@ -60,7 +55,7 @@ class LabelReader:
 #                 + Distinguishing vertical texts and
 #                   horizontal texts with 90-angle orientation  = Need further discussions
 #                   -- do we tackle this in detection (mark as diff type)
-#                      or recognizion (robust to mirrored/vertical/horizontal text)?
+#                      or recognition (robust to mirrored/vertical/horizontal text)?
 #         '''
 #
 

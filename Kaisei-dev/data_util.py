@@ -22,7 +22,6 @@ from torch.utils.data.dataloader import DataLoaderIter
 
 if sys.platform == "darwin":
     import matplotlib as mil
-
     mil.use('TkAgg')  # Fix RTE caused by pyplot under macOS
 import matplotlib.pyplot as plt
 # import matplotlib.patches as Patches
@@ -34,7 +33,7 @@ import config
 def image_normalize(images, means=(112.80 / 255, 106.65 / 255, 101.02 / 255)):
     """
     Image normalization used in EAST.
-    TODO: calc the stds accord to our dataset and use torchvision's transformation.
+    TODO: calc the stds accord to our dataset(DONE) and use torchvision's transformation.
     TODO_DONE: determine the means accord to our dataset.
     EAST means: [123.68, 116.78, 103.94] -- ICDAR?
     STV2K Train means: [112.7965, 106.6500, 101.0181]
@@ -400,7 +399,7 @@ def generate_rbox(im_size, polys, tag_bools, tag_content):
         if tag:
             if min(poly_h, poly_w) < config.min_text_size:
                 # print("Ignore for min_text_size: " + poly_content + "(" +
-                      # str(min(poly_h, poly_w)) + ")[" + str(poly_idx) + "]")
+                # str(min(poly_h, poly_w)) + ")[" + str(poly_idx) + "]")
                 cv2.fillPoly(training_mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
             elif poly_h * poly_w // len(poly_content) < config.min_char_avgsize:
                 # print("Ignore for min_char_avgsize: " + poly_content + "(" +
@@ -553,6 +552,7 @@ def load_annotation(label_path, im_ratio, encoding="GBK"):
                     # x_axis[i] = image_size[0] if x_axis[i] > image_size[0] else x_axis[i]
                     # y_axis[i] = image_size[1] if y_axis[i] > image_size[1] else y_axis[i]
                     temp_quad.append((int(x_axis[i] * im_ratio[0]), int(y_axis[i] * im_ratio[1])))
+                print(temp_quad)
                 text_quad.append(temp_quad)
             elif count % 3 == 1:
                 content = line.strip()
@@ -668,11 +668,13 @@ class STV2KDetDataset(Dataset):
         label_path = img_path.replace(img_filename.split('.')[1], 'txt')
         img, resize_ratio = resize_image_fixed_square(img)
         # Generate score_map and geo_map of 1/4 (w, h) of image size to match the network output
-        ratio_1_4 = (resize_ratio[0] // 2, resize_ratio[1] // 2)
-        # size_1_4 = (img.size[0] // 4, img.size[1] // 4)
+        # Fix: 0~1 // 4 == 0!
+        ratio_1_4 = (resize_ratio[0] / 4, resize_ratio[1] / 4)  # Isn't this 1/16?
+        size_1_4 = (img.size[0] // 4, img.size[1] // 4)
         label_quad, label_content, label_bool = load_annotation(label_path, ratio_1_4)
-        valid_quad, valid_cont, valid_bool = check_and_validate_polys(label_quad, label_content, label_bool, img.size)
-        score_map, geo_map, training_mask = generate_rbox(img.size, valid_quad, valid_bool, valid_cont)
+        valid_quad, valid_cont, valid_bool = check_and_validate_polys(size_1_4, label_content, label_bool, img.size)
+        print(valid_quad)
+        score_map, geo_map, training_mask = generate_rbox(size_1_4, valid_quad, valid_bool, valid_cont)
         # return img, valid_quad, valid_cont, score_map, geo_map, training_mask
         return self.toTensor(img), torch.FloatTensor(score_map), \
             torch.FloatTensor(geo_map), torch.FloatTensor(training_mask)

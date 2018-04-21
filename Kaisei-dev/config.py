@@ -25,7 +25,7 @@ STV2K_test_image_channel_std = (21.3310, 20.0747, 20.0667)
 min_text_size = 2
 min_char_avgsize = 5
 max_side_len = 1280
-fixed_len = 1600  # So we generate gt of size 400*400
+fixed_len = 800  # So we generate gt of size 400*400
 
 # Detection Branch Settings
 text_scale = 1024  # Decides the receptive field of detection branch
