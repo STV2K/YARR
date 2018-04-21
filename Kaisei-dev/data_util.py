@@ -6,19 +6,23 @@ import os
 import sys
 import cv2
 # import six
+from tqdm import tqdm
 import random
 import torch
 import numpy as np
 import torchvision.transforms as transforms
 from PIL import Image
+from torch.autograd import Variable
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import DataLoaderIter
+
 # from torch.utils.data import sampler
 
 
 if sys.platform == "darwin":
     import matplotlib as mil
+
     mil.use('TkAgg')  # Fix RTE caused by pyplot under macOS
 import matplotlib.pyplot as plt
 # import matplotlib.patches as Patches
@@ -92,6 +96,7 @@ def resize_image_fixed_square(image, fixed_len=config.fixed_len):
 
 
 # Computational Geometry
+# Most of these functions are adopted from EAST.
 def polygon_area(poly):
     """
     compute area of a polygon
@@ -109,7 +114,7 @@ def polygon_area(poly):
         (poly[3][0] - poly[2][0]) * (poly[3][1] + poly[2][1]),
         (poly[0][0] - poly[3][0]) * (poly[0][1] + poly[3][1])
     ]
-    return np.sum(edge)/2.
+    return np.sum(edge) / 2.
 
 
 def check_and_validate_polys(polys, tags, tag_bools, img_size):
@@ -120,8 +125,8 @@ def check_and_validate_polys(polys, tags, tag_bools, img_size):
     (w, h) = img_size
     if polys.shape[0] == 0:
         return polys
-    polys[:, :, 0] = np.clip(polys[:, :, 0], 0, w-1)
-    polys[:, :, 1] = np.clip(polys[:, :, 1], 0, h-1)
+    polys[:, :, 0] = np.clip(polys[:, :, 0], 0, w - 1)
+    polys[:, :, 1] = np.clip(polys[:, :, 1], 0, h - 1)
 
     validated_polys = []
     validated_tags = []
@@ -129,7 +134,7 @@ def check_and_validate_polys(polys, tags, tag_bools, img_size):
     for poly, tag, tag_bool in zip(polys, tags, tag_bools):
         p_area = polygon_area(poly)
         if abs(p_area) < 1:
-            # print('invalid poly')
+            print('invalid poly')
             continue
         if p_area > 0:
             # print('poly in wrong direction')
@@ -173,8 +178,8 @@ def line_cross_point(line1, line2):
     else:
         k1, _, b1 = line1
         k2, _, b2 = line2
-        x = -(b1-b2)/(k1-k2)
-        y = k1*x + b1
+        x = -(b1 - b2) / (k1 - k2)
+        y = k1 * x + b1
     return np.array([x, y], dtype=np.float32)
 
 
@@ -186,7 +191,7 @@ def line_vertical(line, point):
         if line[0] == 0:
             vertical = [1, 0, -point[0]]
         else:
-            vertical = [-1./line[0], -1, point[1] - (-1/line[0] * point[0])]
+            vertical = [-1. / line[0], -1, point[1] - (-1 / line[0] * point[0])]
     return vertical
 
 
@@ -197,9 +202,9 @@ def rectangle_from_parallelogram(poly):
     :return:
     """
     p0, p1, p2, p3 = poly
-    angle_p0 = np.arccos(np.dot(p1-p0, p3-p0)/(np.linalg.norm(p0-p1) * np.linalg.norm(p3-p0)))
+    angle_p0 = np.arccos(np.dot(p1 - p0, p3 - p0) / (np.linalg.norm(p0 - p1) * np.linalg.norm(p3 - p0)))
     if angle_p0 < 0.5 * np.pi:
-        if np.linalg.norm(p0 - p1) > np.linalg.norm(p0-p3):
+        if np.linalg.norm(p0 - p1) > np.linalg.norm(p0 - p3):
             # p0 and p2
             # p0
             p2p3 = fit_line([p2[0], p3[0]], [p2[1], p3[1]])
@@ -223,7 +228,7 @@ def rectangle_from_parallelogram(poly):
             new_p3 = line_cross_point(p0p3, p0p3_vertical)
             return np.array([p0, new_p1, p2, new_p3], dtype=np.float32)
     else:
-        if np.linalg.norm(p0-p1) > np.linalg.norm(p0-p3):
+        if np.linalg.norm(p0 - p1) > np.linalg.norm(p0 - p3):
             # p1 and p3
             # p1
             p2p3 = fit_line([p2[0], p3[0]], [p2[1], p3[1]])
@@ -271,18 +276,19 @@ def sort_rectangle(poly):
     else:
         # 找到最低点右边的点
         p_lowest_right = (p_lowest - 1) % 4
-        p_lowest_left = (p_lowest + 1) % 4
-        angle = np.arctan(-(poly[p_lowest][1] - poly[p_lowest_right][1])/(poly[p_lowest][0] - poly[p_lowest_right][0]))
+        # p_lowest_left = (p_lowest + 1) % 4
+        angle = np.arctan(
+            -(poly[p_lowest][1] - poly[p_lowest_right][1]) / (poly[p_lowest][0] - poly[p_lowest_right][0]))
         # assert angle > 0
         if angle <= 0:
             print(angle, poly[p_lowest], poly[p_lowest_right])
-        if angle/np.pi * 180 > 45:
+        if angle / np.pi * 180 > 45:
             # 这个点为p2
             p2_index = p_lowest
             p1_index = (p2_index - 1) % 4
             p0_index = (p2_index - 2) % 4
             p3_index = (p2_index + 1) % 4
-            return poly[[p0_index, p1_index, p2_index, p3_index]], -(np.pi/2 - angle)
+            return poly[[p0_index, p1_index, p2_index, p3_index]], -(np.pi / 2 - angle)
         else:
             # 这个点为p3
             p3_index = p_lowest
@@ -394,7 +400,7 @@ def generate_rbox(im_size, polys, tag_bools, tag_content):
         if tag:
             if min(poly_h, poly_w) < config.min_text_size:
                 # print("Ignore for min_text_size: " + poly_content + "(" +
-                #       str(min(poly_h, poly_w)) + ")[" + str(poly_idx) + "]")
+                      # str(min(poly_h, poly_w)) + ")[" + str(poly_idx) + "]")
                 cv2.fillPoly(training_mask, poly.astype(np.int32)[np.newaxis, :, :], 0)
             elif poly_h * poly_w // len(poly_content) < config.min_char_avgsize:
                 # print("Ignore for min_char_avgsize: " + poly_content + "(" +
@@ -428,10 +434,10 @@ def generate_rbox(im_size, polys, tag_bools, tag_content):
                 else:
                     edge_opposite = [edge[0], -1, p3[1] - edge[0] * p3[0]]
             # move forward edge
-            new_p0 = p0
+            # new_p0 = p0
             new_p1 = p1
-            new_p2 = p2
-            new_p3 = p3
+            # new_p2 = p2
+            # new_p3 = p3
             new_p2 = line_cross_point(forward_edge, edge_opposite)
             if point_dist_to_line(p1, new_p2, p0) > point_dist_to_line(p1, new_p2, p3):
                 # across p0
@@ -450,9 +456,9 @@ def generate_rbox(im_size, polys, tag_bools, tag_content):
             fitted_parallelograms.append([new_p0, new_p1, new_p2, new_p3, new_p0])
             # or move backward edge
             new_p0 = p0
-            new_p1 = p1
-            new_p2 = p2
-            new_p3 = p3
+            # new_p1 = p1
+            # new_p2 = p2
+            # new_p3 = p3
             new_p3 = line_cross_point(backward_edge, edge_opposite)
             if point_dist_to_line(p0, p3, p1) > point_dist_to_line(p0, p3, p2):
                 # across p1
@@ -499,7 +505,7 @@ def generate_rbox(im_size, polys, tag_bools, tag_content):
             geo_map[3, y, x] = point_dist_to_line(p3_rect_ex, p0_rect_ex, point)
             # angle
             geo_map[4, y, x] = rotate_angle
-    return score_map, geo_map, training_mask
+    return score_map[np.newaxis, ...], geo_map, training_mask[np.newaxis, ...]
 
 
 # Dataset helpers
@@ -593,18 +599,42 @@ def exchange_point_axis(p):
 
 def calc_image_channel_mean(img_list):
     sum_up = np.array([0., 0., 0.])
-    for img in img_list:
-        sample_sum = np.array([0, 0, 0])
+    for img in tqdm(img_list):
         im_array = np.array(Image.open(img))
-        sample_sum[0] += im_array[:, :, 0].sum()
-        sample_sum[1] += im_array[:, :, 1].sum()
-        sample_sum[2] += im_array[:, :, 2].sum()
-        sum_up += sample_sum / im_array.shape[0] / im_array.shape[1]
+        # sample_sum = np.array([0, 0, 0])
+        # sample_sum[0] += im_array[:, :, 0].sum()
+        # sample_sum[1] += im_array[:, :, 1].sum()
+        # sample_sum[2] += im_array[:, :, 2].sum()
+        sum_up += np.mean(im_array, (0, 1))  # / im_array.shape[0] / im_array.shape[1]
     return sum_up / len(img_list)
 
 
-# PyTorch Warp-up
-# COMPROMISED-TODO: fix issue that default collate_fn cannot deal with various sized tensor, which requires turning
+class ImageChannelStdCalc:
+    sample_num = 0
+
+    def __init__(self, means):
+        self.means = np.array(means)
+        self.deviation_accumulate = np.array([0.] * len(means))
+
+    def add_sample(self, sample):
+        assert len(sample) == len(self.means)
+        self.deviation_accumulate += np.square(sample - self.means)
+        self.sample_num += 1
+
+    def get_std(self):
+        return np.sqrt(self.deviation_accumulate / self.sample_num)
+
+
+def calc_image_channel_std(img_list, img_means):
+    std_calc = ImageChannelStdCalc(np.array(img_means))
+    for img in tqdm(img_list):
+        im_array = np.array(Image.open(img))
+        std_calc.add_sample(np.mean(im_array, (0, 1)))
+    return std_calc.get_std()
+
+
+# PyTorch Data Warp-up
+# TODO-COMPROMISED: fix issue that default collate_fn cannot deal with various sized tensor, which requires turning
 #  into lists or to sample pictures for mini-batches in an aspect-ratio-respecting way
 # COMPROMISE: we chose to resize all stv2k images to (1120, 1120) during training.
 def collate_fn(batch):
@@ -637,7 +667,10 @@ class STV2KDetDataset(Dataset):
         img_filename = str(os.path.basename(img_path))
         label_path = img_path.replace(img_filename.split('.')[1], 'txt')
         img, resize_ratio = resize_image_fixed_square(img)
-        label_quad, label_content, label_bool = load_annotation(label_path, resize_ratio)
+        # Generate score_map and geo_map of 1/4 (w, h) of image size to match the network output
+        ratio_1_4 = (resize_ratio[0] // 2, resize_ratio[1] // 2)
+        # size_1_4 = (img.size[0] // 4, img.size[1] // 4)
+        label_quad, label_content, label_bool = load_annotation(label_path, ratio_1_4)
         valid_quad, valid_cont, valid_bool = check_and_validate_polys(label_quad, label_content, label_bool, img.size)
         score_map, geo_map, training_mask = generate_rbox(img.size, valid_quad, valid_bool, valid_cont)
         # return img, valid_quad, valid_cont, score_map, geo_map, training_mask
@@ -716,8 +749,8 @@ class DataProvider:
 
 
 if __name__ == '__main__':
-        # img = Image.open(config.__sample_path_1__)
-        # img, o = resize_image(img, 3200)
-        # print(img.size)
-        # img.show()
-        pass
+    # img = Image.open(config.__sample_path_1__)
+    # img, o = resize_image(img, 3200)
+    # print(img.size)
+    # img.show()
+    pass

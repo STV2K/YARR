@@ -33,6 +33,7 @@ def detect_branch_forward_test():
     im, _ = data_util.resize_image(Image.open(config.__sample_path_1__), config.max_side_len)
     print(im.size)
     im_tensor = tv.transforms.ToTensor()(im)
+    print(im_tensor.shape)
     im_tensor.unsqueeze_(0)
     # Convention: [batch, channel, height, width]
     # im_tensor = im_tensor.view(1, im.size[0], im.size[1], -1)

@@ -25,19 +25,20 @@ import data_util
 # gpu_id = config.gpu_list
 
 random_seed = random.randint(1, 2292014)
+print("Random seed set to %d" % random_seed)
 random.seed(random_seed)
 np.random.seed(random_seed)
 torch.manual_seed(random_seed)
 
-cudnn.benchmark = True
-cudnn.enabled = True
+cudnn.benchmark = config.on_cuda
+cudnn.enabled = config.on_cuda
 
 train_loader = data_util.DataProvider(batch_size=config.batch_size,
-                                      data_path=config.training_data_path_pami,
-                                      is_cuda=True)
+                                      data_path=config.training_data_path_z440,
+                                      is_cuda=config.on_cuda)
 test_loader = data_util.DataProvider(batch_size=config.test_batch_size,
-                                     data_path=config.test_data_path_pami,
-                                     is_cuda=True)
+                                     data_path=config.test_data_path_z440,
+                                     is_cuda=config.on_cuda)
 
 
 def weights_init(module):
@@ -55,7 +56,12 @@ def weights_init(module):
 kaisei = branches.Kaisei()
 kaisei.apply(weights_init)
 
-if config.continue_train != '':
+# input_images = Variable(torch.FloatTensor(config.batch_size, 3, config.fixed_len, config.fixed_len))
+# input_score_maps = Variable(torch.FloatTensor(config.batch_size, 1, config.fixed_len, config.fixed_len))
+# input_geo_maps = Variable(torch.FloatTensor(config.batch_size, 4, config.fixed_len, config.fixed_len))
+# input_masks = Variable(torch.FloatTensor(config.batch_size, 1, config.fixed_len, config.fixed_len))
+
+if config.continue_train:
     print('loading pretrained model from %s' % config.ckpt_path)
     kaisei.load_state_dict(torch.load(config.ckpt_path))
 # print(kaisei)
@@ -63,7 +69,6 @@ if config.continue_train != '':
 if config.on_cuda:
     kaisei.cuda()
     kaisei = torch.nn.DataParallel(kaisei, device_ids=config.gpu_list)
-
 
 # loss average
 loss_avg = eval.LossAverage()
@@ -78,83 +83,101 @@ else:
     optimizer = optim.RMSprop(kaisei.parameters(), lr=config.lr)
 
 
-# TODO: adopt this
-def val(net, dataset, criterion, max_iter=100):
+def val(net, dataset, criterion, max_iter=config.test_iter_num):
     """
     Adopted from CRNN.
-    Detect.
+    Valuate.
     """
     print('Start val===')
 
-    for p in kaisei.parameters():
+    for p in net.parameters():
         p.requires_grad = False
 
     net.eval()
-    data_loader = torch.utils.data.DataLoader(
-        dataset, shuffle=True, batch_size=opt.batchSize, num_workers=int(opt.workers))
-    val_iter = iter(data_loader)
+    data_loader = test_loader
 
-    i = 0
-    n_correct = 0
-    loss_avg = eval.LossAverage
+    for i in range(max(len(data_loader.data_iter), max_iter)):
+        data = data_loader.next()
+        img_batch, score_maps, geo_maps, training_masks = data
+        img_batch = data_util.image_normalize(img_batch, config.STV2K_train_image_channel_means)
+        img_batch = Variable(img_batch)
+        score_maps = Variable(score_maps)
+        geo_maps = Variable(geo_maps)
+        training_masks = Variable(training_masks)
+        pred_scores, pred_geos = net(img_batch)
+        batch_loss = eval.loss(score_maps, pred_scores, geo_maps, pred_geos, training_masks)
+        batch_loss = batch_loss / config.batch_size
+        loss_avg.add(batch_loss)
 
-    max_iter = min(max_iter, len(data_loader))
-    for i in range(max_iter):
-        data = val_iter.next()
-        i += 1
-        cpu_images, cpu_texts = data
-        batch_size = cpu_images.size(0)
-        utils.loadData(image, cpu_images)
-        t, l = converter.encode(cpu_texts)
-        utils.loadData(text, t)
-        utils.loadData(length, l)
+    print('Test loss: %f' % (loss_avg.val()))
+    loss_avg.reset()
+    # i = 0
+    # n_correct = 0
+    # loss_avg = eval.LossAverage
+    #
+    # max_iter = min(max_iter, len(data_loader))
+    # for i in range(max_iter):
+    #     data = val_iter.next()
+    #     i += 1
+    #     cpu_images, cpu_texts = data
+    #     batch_size = cpu_images.size(0)
+    #     utils.loadData(image, cpu_images)
+    #     t, l = converter.encode(cpu_texts)
+    #     utils.loadData(text, t)
+    #     utils.loadData(length, l)
+    #
+    #     preds = crnn(image)
+    #     preds_size = Variable(torch.IntTensor([preds.size(0)] * batch_size))
+    #     cost = criterion(preds, text, preds_size, length) / batch_size
+    #     loss_avg.add(cost)
+    #
+    #     _, preds = preds.max(2)
+    #     preds = preds.squeeze(2)
+    #     preds = preds.transpose(1, 0).contiguous().view(-1)
+    #     sim_preds = converter.decode(preds.data, preds_size.data, raw=False)
+    #     for pred, target in zip(sim_preds, cpu_texts):
+    #         if pred == target.lower():
+    #             n_correct += 1
+    #
+    # raw_preds = converter.decode(preds.data, preds_size.data, raw=True)[:opt.n_test_disp]
+    # for raw_pred, pred, gt in zip(raw_preds, sim_preds, cpu_texts):
+    #     print('%-20s => %-20s, gt: %-20s' % (raw_pred, pred, gt))
+    #
+    # accuracy = n_correct / float(max_iter * opt.batchSize)
+    # print('Test loss: %f, accuray: %f' % (loss_avg.val(), accuracy))
 
-        preds = crnn(image)
-        preds_size = Variable(torch.IntTensor([preds.size(0)] * batch_size))
-        cost = criterion(preds, text, preds_size, length) / batch_size
-        loss_avg.add(cost)
 
-        _, preds = preds.max(2)
-        preds = preds.squeeze(2)
-        preds = preds.transpose(1, 0).contiguous().view(-1)
-        sim_preds = converter.decode(preds.data, preds_size.data, raw=False)
-        for pred, target in zip(sim_preds, cpu_texts):
-            if pred == target.lower():
-                n_correct += 1
-
-    raw_preds = converter.decode(preds.data, preds_size.data, raw=True)[:opt.n_test_disp]
-    for raw_pred, pred, gt in zip(raw_preds, sim_preds, cpu_texts):
-        print('%-20s => %-20s, gt: %-20s' % (raw_pred, pred, gt))
-
-    accuracy = n_correct / float(max_iter * opt.batchSize)
-    print('Test loss: %f, accuray: %f' % (loss_avg.val(), accuracy))
-
-
-# TODO: adopt this
-def trainBatch(net, criterion, optimizer):
-    data = train_iter.next()
-    cpu_images, cpu_texts = data
-    batch_size = cpu_images.size(0)
-    utils.loadData(image, cpu_images)
-    t, l = converter.encode(cpu_texts)
-    utils.loadData(text, t)
-    utils.loadData(length, l)
-
-    preds = crnn(image)
-    preds_size = Variable(torch.IntTensor([preds.size(0)] * batch_size))
-    cost = criterion(preds, text, preds_size, length) / batch_size
-    crnn.zero_grad()
-    cost.backward()
+def train_batch(net, criterion, optimizer):
+    data = train_loader.next()
+    img_batch, score_maps, geo_maps, training_masks = data
+    img_batch = data_util.image_normalize(img_batch, config.STV2K_train_image_channel_means)
+    img_batch = Variable(img_batch)
+    score_maps = Variable(score_maps)
+    geo_maps = Variable(geo_maps)
+    training_masks = Variable(training_masks)
+    pred_scores, pred_geos = kaisei(img_batch)
+    batch_loss = eval.loss(score_maps, pred_scores, geo_maps, pred_geos, training_masks)
+    batch_loss = batch_loss / config.batch_size
+    kaisei.zero_grad()
+    batch_loss.backward()
     optimizer.step()
-    return cost
+    # cpu_images, cpu_texts = data
+    # batch_size = cpu_images.size(0)
+    # utils.loadData(image, cpu_images)
+    # t, l = converter.encode(cpu_texts)
+    # utils.loadData(text, t)
+    # utils.loadData(length, l)
+    #
+    # preds = crnn(image)
+    # preds_size = Variable(torch.IntTensor([preds.size(0)] * batch_size))
+    # cost = criterion(preds, text, preds_size, length) / batch_size
+    # crnn.zero_grad()
+    # cost.backward()
+    # optimizer.step()
+    return batch_loss
 
 
 def detection_train():
-    # TODO: checkpoint, gpu_config, restoring
-    input_images = []
-    input_score_maps = []
-    input_geo_maps = []
-    input_training_masks = []
     criterion = eval.loss
 
     for epoch in range(config.epoch_num):
@@ -164,9 +187,9 @@ def detection_train():
             for p in kaisei.parameters():
                 p.requires_grad = True
             kaisei.train()
-
-            cost = trainBatch(kaisei, criterion, optimizer)
+            cost = train_batch(kaisei, criterion, optimizer)
             loss_avg.add(cost)
+            print(i)
             i += 1
 
             if i % config.notify_interval == 0:
@@ -176,10 +199,10 @@ def detection_train():
 
             if i % config.val_interval == 0:
                 val(kaisei, test_loader, criterion)
-
+                return 
             # checkpoint
-            if i % config.ckpt_path == 0:
-                torch.save(kaisei.state_dict(), '{0}/netCRNN_{1}_{2}.pth'.format(config.expr_name, epoch, i))
+            if i % config.ckpt_interval == 0:
+                torch.save(kaisei.state_dict(), '{0}/netKAISEI_{1}_{2}.pth'.format(config.expr_name, epoch, i))
 
 
 if __name__ == "__main__":

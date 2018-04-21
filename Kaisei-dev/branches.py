@@ -69,5 +69,7 @@ class Kaisei(nn.Module):
         residual_layers = self.resnet.residual_layers
         x = self.deconv(x, residual_layers)
         score_map, geometry_map = self.detect(x)
+        # Reset residual cache
+        self.resnet.residual_layers = []
 
         return score_map, geometry_map

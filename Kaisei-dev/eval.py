@@ -44,8 +44,9 @@ def loss(y_true_cls, y_pred_cls, y_true_geo, y_pred_geo, training_mask):
     classification_loss *= 0.01
 
     # d1 -> top, d2->right, d3->bottom, d4->left
-    d1_gt, d2_gt, d3_gt, d4_gt, theta_gt = torch.split(y_true_geo, 5, dim=3)
-    d1_pred, d2_pred, d3_pred, d4_pred, theta_pred = torch.split(y_pred_geo, 5, dim=3)
+    # print(torch.split(y_true_geo, 5, dim=1))
+    d1_gt, d2_gt, d3_gt, d4_gt, theta_gt = torch.split(y_true_geo, 1, dim=1)
+    d1_pred, d2_pred, d3_pred, d4_pred, theta_pred = torch.split(y_pred_geo, 1, dim=1)
     area_gt = (d1_gt + d3_gt) * (d2_gt + d4_gt)
     area_pred = (d1_pred + d3_pred) * (d2_pred + d4_pred)
     w_union = torch.min(d2_gt, d2_pred) + torch.min(d4_gt, d4_pred)
@@ -58,7 +59,8 @@ def loss(y_true_cls, y_pred_cls, y_true_geo, y_pred_geo, training_mask):
     # tf.summary.scalar('geometry_AABB', tf.reduce_mean(L_AABB * y_true_cls * training_mask))
     # tf.summary.scalar('geometry_theta', tf.reduce_mean(L_theta * y_true_cls * training_mask))
     l_g = l_AABB + 20 * l_theta
-
+    print("Loss:", l_g, " AABB:", l_AABB, " theta:", l_theta, " ret:", torch.mean(l_g * y_true_cls * training_mask) +
+          classification_loss)
     return torch.mean(l_g * y_true_cls * training_mask) + classification_loss
 
 

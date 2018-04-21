@@ -16,14 +16,16 @@ STV2K_image_height = 3264
 STV2K_train_image_num = 1215
 STV2K_test_image_num = 853
 STV2K_train_image_channel_means = (112.7965, 106.6500, 101.0181)
+STV2K_train_image_channel_std = (19.3811, 18.2817, 19.1222)
 STV2K_test_image_channel_means = (113.4384, 109.0392, 102.7425)
+STV2K_test_image_channel_std = (21.3310, 20.0747, 20.0667)
 
 # Data and Augmentation Settings
-min_crop_side_ratio = 0.2
-min_text_size = 7
-min_char_avgsize = 25
+# min_crop_side_ratio = 0.2
+min_text_size = 2
+min_char_avgsize = 5
 max_side_len = 1280
-fixed_len = 1120
+fixed_len = 1600  # So we generate gt of size 400*400
 
 # Detection Branch Settings
 text_scale = 1024  # Decides the receptive field of detection branch
@@ -34,16 +36,17 @@ nms_threshold = 0.2
 # GPU Training Settings
 data_loader_worker_num = 1  # Setting to 0 will load data in the main process
 gpu_list = [0]
-batch_size = 16
+batch_size = 2  # set to 16 during training
 test_batch_size = 8
+test_iter_num = 5
 iter_num = 1000
 epoch_num = 50
-val_interval = 100
-notify_interval = 10
+val_interval = 1000
+notify_interval = 1
 ckpt_interval = 500
 ckpt_path = "./save_points"
-on_cuda = True
-continue_train = True
+on_cuda = False
+continue_train = False
 ckpt_filename = ""
 expr_name = "KAISEI-Det"
 
