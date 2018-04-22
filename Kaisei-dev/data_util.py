@@ -133,7 +133,7 @@ def check_and_validate_polys(polys, tags, tag_bools, img_size):
     for poly, tag, tag_bool in zip(polys, tags, tag_bools):
         p_area = polygon_area(poly)
         if abs(p_area) < 1:
-            # print('invalid poly:', poly)
+            print('invalid poly:', poly, tag)
             continue
         if p_area > 0:
             # print('poly in wrong direction')
@@ -376,7 +376,7 @@ def restore_rectangle(origin, geometry):
     return restore_rectangle_rbox(origin, geometry)
 
 
-def generate_rbox(im_size, polys, tag_bools, tag_content):
+def generate_rbox(im_size, polys, tag_bools, tag_content, img_name=""):
     w, h = im_size
     poly_mask = np.zeros((h, w), dtype=np.uint8)
     score_map = np.zeros((h, w), dtype=np.uint8)
@@ -423,6 +423,10 @@ def generate_rbox(im_size, polys, tag_bools, tag_content):
             edge = fit_line([p0[0], p1[0]], [p0[1], p1[1]])
             backward_edge = fit_line([p0[0], p3[0]], [p0[1], p3[1]])
             forward_edge = fit_line([p1[0], p2[0]], [p1[1], p2[1]])
+            if p2 is None:
+                print("P2 returned None: ", img_name, poly)
+            if np.linalg.norm(p2 - p1) == 0.:
+                print("P2-P1 returned 0: ", img_name, poly)
             if point_dist_to_line(p0, p1, p2) > point_dist_to_line(p0, p1, p3):
                 # 平行线经过p2
                 if edge[1] == 0:
@@ -436,11 +440,15 @@ def generate_rbox(im_size, polys, tag_bools, tag_content):
                 else:
                     edge_opposite = [edge[0], -1, p3[1] - edge[0] * p3[0]]
             # move forward edge
-            new_p0 = p0
+            # new_p0 = p0
             new_p1 = p1
-            new_p2 = p2
-            new_p3 = p3
+            # new_p2 = p2
+            # new_p3 = p3
             new_p2 = line_cross_point(forward_edge, edge_opposite)
+            if new_p2 is None:
+                print("NP2 returned None: ", img_name, poly)
+            if np.linalg.norm(new_p2 - p0) == 0.:
+                print("NP2-P0 returned 0: ", img_name, poly)
             if point_dist_to_line(p1, new_p2, p0) > point_dist_to_line(p1, new_p2, p3):
                 # across p0
                 if forward_edge[1] == 0:
@@ -458,9 +466,9 @@ def generate_rbox(im_size, polys, tag_bools, tag_content):
             fitted_parallelograms.append([new_p0, new_p1, new_p2, new_p3, new_p0])
             # or move backward edge
             new_p0 = p0
-            new_p1 = p1
-            new_p2 = p2
-            new_p3 = p3
+            # new_p1 = p1
+            # new_p2 = p2
+            # new_p3 = p3
             new_p3 = line_cross_point(backward_edge, edge_opposite)
             if point_dist_to_line(p0, p3, p1) > point_dist_to_line(p0, p3, p2):
                 # across p1
@@ -522,7 +530,7 @@ def get_image_list(file_path):
     return file_list
 
 
-def load_annotation(label_path, im_ratio, encoding="GBK"):
+def load_annotation(label_path, encoding="GBK"):
     """
     Load the new STV2K label file into arrays using EAST Fashion.
     :return *text_quad*, *text_content* and *text_bool*.
@@ -576,12 +584,12 @@ def load_data(file_path=config.demo_data_path):
     ret = []
     for img_path in image_list:
         img = Image.open(img_path)
+        img_ori_size = img.size
         img_filename = str(os.path.basename(img_path))
-        # img_ori_size = img.size
         label_path = img_path.replace(img_filename.split('.')[1], 'txt')
         img, resize_ratio = resize_image_fixed_square(img, config.fixed_len)
-        label_quad, label_content, label_bool = load_annotation(label_path, resize_ratio)
-        vali_quad, vali_cont, vali_bool = check_and_validate_polys(label_quad, label_content, label_bool, img.size)
+        label_quad, label_content, label_bool = load_annotation(label_path)
+        vali_quad, vali_cont, vali_bool = check_and_validate_polys(label_quad, label_content, label_bool, img_ori_size)
         score_map, geo_map, training_mask = generate_rbox(img.size, vali_quad, vali_bool, vali_cont)
         ret.append([img_filename, img, resize_ratio,
                     vali_quad, vali_cont, vali_bool,
@@ -666,8 +674,9 @@ class STV2KDetDataset(Dataset):
 
     def __getitem__(self, index):
         img_path = self.image_list[index]
-        print("Getting img:", img_path)
+        # print("Getting img:", img_path)
         img = Image.open(img_path)
+        img_ori_size = img.size
         img_filename = str(os.path.basename(img_path))
         label_path = img_path.replace(img_filename.split('.')[1], 'txt')
         img, resize_ratio = resize_image_fixed_square(img)
@@ -676,21 +685,24 @@ class STV2KDetDataset(Dataset):
         # NB: Passing 1/4 ratio to generate score and geo maps may evoke mysterious computational geometry problems.
         # ratio_1_4 = (resize_ratio[0] / 4, resize_ratio[1] / 4)
         # size_1_4 = (img.size[0] // 4, img.size[1] // 4)
-        label_quad, label_content, label_bool = load_annotation(label_path, resize_ratio)
-        valid_quad, valid_cont, valid_bool = check_and_validate_polys(label_quad, label_content, label_bool, img.size)
+        label_quad, label_content, label_bool = load_annotation(label_path)
+        valid_quad, valid_cont, valid_bool = check_and_validate_polys(label_quad, label_content, label_bool, img_ori_size)
         # Use float quads to generate maps
         valid_quad_resized = np.array(valid_quad)
         if len(valid_quad_resized):
             valid_quad_resized[:, :, 0] *= resize_ratio[0]
             valid_quad_resized[:, :, 1] *= resize_ratio[1]
-        score_map, geo_map, training_mask = generate_rbox(img.size, valid_quad_resized, valid_bool, valid_cont)
+        score_map, geo_map, training_mask = generate_rbox(img.size, valid_quad_resized, valid_bool, valid_cont, img_path)
         # return img, valid_quad, valid_cont, score_map, geo_map, training_mask
         # Downsample the groundtruth to match the output size
+        # print("Finishing img:", img_path)
         return self.toTensor(img), torch.FloatTensor(score_map[::, ::4, ::4]), \
             torch.FloatTensor(geo_map[::, ::4, ::4]), torch.FloatTensor(training_mask[::, ::4, ::4])
 
 
 class DataProvider:
+    # count = 0
+
     def __init__(self, batch_size=8, is_cuda=False, num_workers=config.data_loader_worker_num,
                  data_path=config.training_data_path_z440):
         self.batch_size = batch_size
@@ -716,6 +728,8 @@ class DataProvider:
                 for i in range(len(batch)):
                     if isinstance(batch[i], torch.Tensor):
                         batch[i] = batch[i].cuda()
+            # self.count += self.batch_size
+            # print(self.count)
             return batch
 
         except StopIteration:  # Reload after one epoch
@@ -765,4 +779,11 @@ if __name__ == '__main__':
     # img, o = resize_image(img, 3200)
     # print(img.size)
     # img.show()
-    pass
+    dp = DataProvider(5, num_workers=5, data_path=config.training_data_path)
+    while True:
+        try:
+            dp.next()
+        except StopIteration:
+            break
+        except Exception as _Eall:
+            print(_Eall)
