@@ -133,7 +133,7 @@ def check_and_validate_polys(polys, tags, tag_bools, img_size):
     for poly, tag, tag_bool in zip(polys, tags, tag_bools):
         p_area = polygon_area(poly)
         if abs(p_area) < 1:
-            print('invalid poly')
+            # print('invalid poly:', poly)
             continue
         if p_area > 0:
             # print('poly in wrong direction')
@@ -148,7 +148,10 @@ def point_dist_to_line(p1, p2, p3):
     # compute the distance from p3 to p1~p2
     # print("Computing " + str(p3) + " to line " + str(p1) + str(p2))
     # print("Get: " + str(np.linalg.norm(np.cross(p2 - p1, p1 - p3)) / np.linalg.norm(p2 - p1)))
-    return np.linalg.norm(np.cross(p2 - p1, p1 - p3)) / np.linalg.norm(p2 - p1)
+    try:
+        return np.linalg.norm(np.cross(p2 - p1, p1 - p3)) / np.linalg.norm(p2 - p1)
+    except:
+        print("Computing " + str(p3) + " to line " + str(p1) + str(p2))
 
 
 def fit_line(p1, p2):
@@ -279,8 +282,8 @@ def sort_rectangle(poly):
         angle = np.arctan(
             -(poly[p_lowest][1] - poly[p_lowest_right][1]) / (poly[p_lowest][0] - poly[p_lowest_right][0]))
         # assert angle > 0
-        if angle <= 0:
-            print(angle, poly[p_lowest], poly[p_lowest_right])
+        # if angle <= 0:
+            # print(angle, poly[p_lowest], poly[p_lowest_right])
         if angle / np.pi * 180 > 45:
             # 这个点为p2
             p2_index = p_lowest
@@ -433,10 +436,10 @@ def generate_rbox(im_size, polys, tag_bools, tag_content):
                 else:
                     edge_opposite = [edge[0], -1, p3[1] - edge[0] * p3[0]]
             # move forward edge
-            # new_p0 = p0
+            new_p0 = p0
             new_p1 = p1
-            # new_p2 = p2
-            # new_p3 = p3
+            new_p2 = p2
+            new_p3 = p3
             new_p2 = line_cross_point(forward_edge, edge_opposite)
             if point_dist_to_line(p1, new_p2, p0) > point_dist_to_line(p1, new_p2, p3):
                 # across p0
@@ -455,9 +458,9 @@ def generate_rbox(im_size, polys, tag_bools, tag_content):
             fitted_parallelograms.append([new_p0, new_p1, new_p2, new_p3, new_p0])
             # or move backward edge
             new_p0 = p0
-            # new_p1 = p1
-            # new_p2 = p2
-            # new_p3 = p3
+            new_p1 = p1
+            new_p2 = p2
+            new_p3 = p3
             new_p3 = line_cross_point(backward_edge, edge_opposite)
             if point_dist_to_line(p0, p3, p1) > point_dist_to_line(p0, p3, p2):
                 # across p1
@@ -551,8 +554,8 @@ def load_annotation(label_path, im_ratio, encoding="GBK"):
                     # y_axis[i] = 0 if y_axis[i] < 0 else y_axis[i]
                     # x_axis[i] = image_size[0] if x_axis[i] > image_size[0] else x_axis[i]
                     # y_axis[i] = image_size[1] if y_axis[i] > image_size[1] else y_axis[i]
-                    temp_quad.append((int(x_axis[i] * im_ratio[0]), int(y_axis[i] * im_ratio[1])))
-                print(temp_quad)
+                    # temp_quad.append((int(x_axis[i] * im_ratio[0]), int(y_axis[i] * im_ratio[1])))
+                    temp_quad.append([x_axis[i], y_axis[i]])
                 text_quad.append(temp_quad)
             elif count % 3 == 1:
                 content = line.strip()
@@ -663,21 +666,28 @@ class STV2KDetDataset(Dataset):
 
     def __getitem__(self, index):
         img_path = self.image_list[index]
+        print("Getting img:", img_path)
         img = Image.open(img_path)
         img_filename = str(os.path.basename(img_path))
         label_path = img_path.replace(img_filename.split('.')[1], 'txt')
         img, resize_ratio = resize_image_fixed_square(img)
         # Generate score_map and geo_map of 1/4 (w, h) of image size to match the network output
         # Fix: 0~1 // 4 == 0!
-        ratio_1_4 = (resize_ratio[0] / 4, resize_ratio[1] / 4)  # Isn't this 1/16?
-        size_1_4 = (img.size[0] // 4, img.size[1] // 4)
-        label_quad, label_content, label_bool = load_annotation(label_path, ratio_1_4)
-        valid_quad, valid_cont, valid_bool = check_and_validate_polys(size_1_4, label_content, label_bool, img.size)
-        print(valid_quad)
-        score_map, geo_map, training_mask = generate_rbox(size_1_4, valid_quad, valid_bool, valid_cont)
+        # NB: Passing 1/4 ratio to generate score and geo maps may evoke mysterious computational geometry problems.
+        # ratio_1_4 = (resize_ratio[0] / 4, resize_ratio[1] / 4)
+        # size_1_4 = (img.size[0] // 4, img.size[1] // 4)
+        label_quad, label_content, label_bool = load_annotation(label_path, resize_ratio)
+        valid_quad, valid_cont, valid_bool = check_and_validate_polys(label_quad, label_content, label_bool, img.size)
+        # Use float quads to generate maps
+        valid_quad_resized = np.array(valid_quad)
+        if len(valid_quad_resized):
+            valid_quad_resized[:, :, 0] *= resize_ratio[0]
+            valid_quad_resized[:, :, 1] *= resize_ratio[1]
+        score_map, geo_map, training_mask = generate_rbox(img.size, valid_quad_resized, valid_bool, valid_cont)
         # return img, valid_quad, valid_cont, score_map, geo_map, training_mask
-        return self.toTensor(img), torch.FloatTensor(score_map), \
-            torch.FloatTensor(geo_map), torch.FloatTensor(training_mask)
+        # Downsample the groundtruth to match the output size
+        return self.toTensor(img), torch.FloatTensor(score_map[::, ::4, ::4]), \
+            torch.FloatTensor(geo_map[::, ::4, ::4]), torch.FloatTensor(training_mask[::, ::4, ::4])
 
 
 class DataProvider:

@@ -59,8 +59,8 @@ def loss(y_true_cls, y_pred_cls, y_true_geo, y_pred_geo, training_mask):
     # tf.summary.scalar('geometry_AABB', tf.reduce_mean(L_AABB * y_true_cls * training_mask))
     # tf.summary.scalar('geometry_theta', tf.reduce_mean(L_theta * y_true_cls * training_mask))
     l_g = l_AABB + 20 * l_theta
-    print("Loss:", l_g, " AABB:", l_AABB, " theta:", l_theta, " ret:", torch.mean(l_g * y_true_cls * training_mask) +
-          classification_loss)
+    # print("Loss:", l_g, " AABB:", l_AABB, " theta:", l_theta, " ret:", torch.mean(l_g * y_true_cls * training_mask) +
+    #      classification_loss)
     return torch.mean(l_g * y_true_cls * training_mask) + classification_loss
 
 
