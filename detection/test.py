@@ -72,7 +72,7 @@ def test(img_name):
         b_gdifficults = tf.zeros(tf.shape(label), dtype=tf.int64)
 
         anchors = STVNet.ssd_anchors_all_layers()
-        predictions, localisations, logits, end_points = STVNet.model(inputs)
+        predictions, localisations, logits, end_points = STVNet.model(inputs, is_training=True)
         #gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_encode(label, bboxes, anchors)
         #pos_loss, neg_loss, loc_loss, _ = STVNet.ssd_losses(logits, localisations, gclasses, glocal, gscores)
 

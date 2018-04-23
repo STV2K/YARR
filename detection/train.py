@@ -12,7 +12,7 @@ tf.logging.set_verbosity(tf.logging.INFO)
 slim = tf.contrib.slim
 os.environ["CUDA_VISIBLE_DEVICES"] = "3" # config.FLAGS.gpu_list
 model_dir='/home/hcxiao/Codes/YARR/detection/models/'
-save_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet-6scales/'
+save_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet-6scales/mix/'
 model_name='VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt' # .data-00000-of-00001'
 
 img_width = config.FLAGS.input_size_width
@@ -147,7 +147,7 @@ def train():
             summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
             batch_size = config.FLAGS.batch_size
 
-            step = 8445
+            step = 1
             while_flag = True
             while(while_flag):
 

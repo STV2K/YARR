@@ -8,6 +8,7 @@ import tensorflow as tf
 import tf_extended as tfe
 import config_utils as config
 
+from tensorflow.python.ops import array_ops
 
 slim = tf.contrib.slim
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
@@ -31,6 +32,23 @@ def resize_image(image, size,
                                        method, align_corners)
         image = tf.reshape(image, tf.stack([size[0], size[1], channels]))
         return image
+
+def _ImageDimensions(image):
+    """Returns the dimensions of an image tensor.
+    Args:
+      image: A 3-D Tensor of shape `[height, width, channels]`.
+    Returns:
+      A list of `[height, width, channels]` corresponding to the dimensions of the
+        input image.  Dimensions that are statically known are python integers,
+        otherwise they are integer scalar tensors.
+    """
+    if image.get_shape().is_fully_defined():
+        return image.get_shape().as_list()
+    else:
+        static_shape = image.get_shape().with_rank(3).as_list()
+        dynamic_shape = array_ops.unstack(array_ops.shape(image), 3)
+        return [s if s is not None else d
+                for s, d in zip(static_shape, dynamic_shape)]
 
 def distorted_bounding_box_crop(image,
                                 labels,
@@ -86,7 +104,7 @@ def distorted_bounding_box_crop(image,
         # Update bounding boxes: resize and filter out.
         bboxes = tfe.bboxes_resize(distort_bbox, bboxes)
         labels, bboxes = tfe.bboxes_filter_overlap(labels, bboxes,
-                                                   threshold=BBOX_CROP_OVERLAP,
+                                                   threshold=0.5,#BBOX_CROP_OVERLAP,
                                                    assign_negative=False)
         return cropped_image, labels, bboxes, distort_bbox
 
@@ -96,27 +114,25 @@ def get_processed_imgs(images,
     ret_images = []
     ret_labels = []
     ret_bboxes = []
-    for i in range(len(labels)):
-        cropped_image, cropped_labels, cropped_bboxes = distorted_bounding_box_crop(images[0], labels[0], bboxes[0],
+    for i in range(3):
+        cropped_image, cropped_labels, cropped_bboxes, distort_box = distorted_bounding_box_crop(images[i], labels[i], bboxes[i],
                                                                                     min_object_covered=0.25,
                                                                                     aspect_ratio_range=(0.6, 1.67))
         cropped_image = resize_image(cropped_image, (300,300),
                                      method=tf.image.ResizeMethod.BILINEAR,
                                      align_corners=False)
 
-        result_img = Image.fromarray(np.uint8(cropped_image))
-        result_img.save('results/process/' + i + '.jpg')
-
-        print(cropped_labels)
-        print(cropped_bboxes)
-
         ret_images.append(cropped_image)
         ret_labels.append(cropped_labels)
         ret_bboxes.append(cropped_bboxes)
         
-    ret_images = np.array(ret_images)
-    ret_labels = np.array(ret_labels)
-    ret_bboxes = np.array(ret_bboxes)
+    ret_images = tf.stack(ret_images)
+    ret_labels = tf.stack(ret_labels)
+    ret_bboxes = tf.stack(ret_bboxes)
+#    ret_images = np.array(ret_images)
+#    ret_labels = np.array(ret_labels)
+#    ret_bboxes = np.array(ret_bboxes)
+    return ret_images, ret_labels, ret_bboxes
 
 
 def int64_feature(value):
@@ -343,7 +359,7 @@ icdar_filenames = ['/media/data2/hcx_data/ICDARTF/icdar_0000.tfrecord',
                    '/media/data2/hcx_data/ICDARTF/icdar_0007.tfrecord',
                    '/media/data2/hcx_data/ICDARTF/icdar_0008.tfrecord',
                    '/media/data2/hcx_data/ICDARTF/icdar_0009.tfrecord']
-train_filenames = icdar_filenames
+train_filenames = stv2k_filenames + icdar_filenames
 val_filenames = ['/media/data2/hcx_data/STV2KTF/STV2K_0003.tfrecord']
 
 
@@ -519,6 +535,10 @@ def generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox
 
 def test_process():
     image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num = read_data(train=True)
+    imgs = tf.placeholder(tf.float32, shape=[None, None, None, 3])
+    labels = tf.placeholder(tf.int32, shape=[None, None])
+    bboxes = tf.placeholder(tf.float32, shape=[None, None, 4])
+    c_img, c_lab, c_bbox = get_processed_imgs(imgs, labels, bboxes)
     
 
     with tf.Session() as sess:
@@ -531,8 +551,15 @@ def test_process():
         b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
                     sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
         b_labels, b_bboxes = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
+        re_img, re_lab, re_bbox=sess.run([c_img, c_lab, c_bbox],
+             feed_dict={imgs:b_image[0:2], labels:b_labels[0:2], bboxes:b_bboxes[0:2]})
 
-        get_processed_imgs(b_image[0:2], b_labels[0:2], b_bboxes[0:2])
+        result_img = Image.fromarray(np.uint8(re_img[0]))
+        result_img.save('results/process/0.jpg')
+        print(re_lab[0])
+        print(re_bbox[0])
+
+
 
 
 if __name__ == '__main__':
