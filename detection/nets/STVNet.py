@@ -27,71 +27,109 @@ STVParams = namedtuple('STVParameters', ['img_shape',
                                          'mbox_kernel'
                                          ])
 
-default_params = STVParams(
-      img_shape=(300, 300),
-      num_classes=2,
-      no_annotation_label=21,
-      #feat_layers=['stvnet/resnet_v1_50/block1', 'block5', 'block6', 'block7', 'block8', 'block9'],
-      feat_layers=['block4', 'block7', 'block8', 'block9', 'block10', 'block11'],
-      feat_shapes=[(38, 38), (19, 19), (10, 10), (5, 5), (3, 3), (1, 1)],
-      anchor_size_bounds=[0.15, 0.90],
-      # anchor_size_bounds=[0.20, 0.90],
-      # anchor_sizes=[(21., 45.),
-      #               (45., 99.),
-      #               (99., 153.),
-      #               (153., 207.),
-      #               (207., 261.),
-      #               (261., 315.)],
-      anchor_sizes=[(0.07, 0.15),
-                    (0.15, 0.33),
-                    (0.33, 0.51),
-                    (0.51, 0.69),
-                    (0.69, 0.87),
-                    (0.87, 1.05)],
-      #anchor_ratios=[[2, .5, 5],
-      #               [2, .5, 3, 1./3, 5],
-      #               [2, .5, 3, 1./3, 5],
-      #               [2, .5, 3, 1./3, 5],
-      #               [2, .5, 5],
-      #               [2, .5, 5]],     # add long ratio boxes
-      anchor_ratios=[[.5, .3, .2, 2, 3, 5],
-                     [.5, .3, .2, 2, 3, 5],
-                     [.5, .3, .2, 2, 3, 5],
-                     [.5, .3, .2, 2, 3, 5],
-                     [.5, .3, .2, 2, 3, 5],
-                     [.5, .3, .2, 2, 3, 5]],
-      anchor_steps=[8, 16, 32, 64, 128, 256],
-      anchor_offset=0.5,
-      normalizations=[20, -1, -1, -1, -1, -1],
-      prior_scaling=[0.1, 0.1, 0.2, 0.2],
-      mbox_kernel = [(3, 5),
-                     (3, 5),
-                     (3, 5),
-                     (3, 5),
-                     (3, 5),
-                     (1, 1)]
-      )
+class DetectionNet(object):
 
-def redefine_params(img_width, img_height):
-    default_bk = default_params
     default_params = STVParams(
-        img_shape=(img_height, img_width),
-        num_classes=default_bk.num_classes,
-        feat_layers=default_bk.feat_layers,
-        feat_shape=[(math.ceil(img_height / 8), math.ceil(img_width / 8)),
-                    (math.ceil(img_height / 16), math.ceil(img_width / 16)),
-                    (math.ceil(img_height / 32), math.ceil(img_width / 32)),
-                    (math.ceil(img_height / 64), math.ceil(img_width / 64)),
-                    (math.ceil(img_height / 128), math.ceil(img_width / 128)),
-                    (math.ceil(img_height / 256), math.ceil(img_width / 256))],
-        anchor_size_bounds=default_bk.anchor_size_bounds,
-        anchor_sizes=default_bk.anchor_sizes,
-        anchor_ratios=default_bk.anchor_ratios,
-        anchor_steps=default_bk.anchor_steps,
-        anchor_offset=default_bk.anchor_offset,
-        normalizations=default_bk.normalizations,
-        prior_scaling=default_bk.prior_scaling
-        )
+          img_shape=(300, 300),
+          num_classes=2,
+          no_annotation_label=21,
+          #feat_layers=['stvnet/resnet_v1_50/block1', 'block5', 'block6', 'block7', 'block8', 'block9'],
+          feat_layers=['block4', 'block7', 'block8', 'block9', 'block10', 'block11'],
+          feat_shapes=[(38, 38), (19, 19), (10, 10), (5, 5), (3, 3), (1, 1)],
+          anchor_size_bounds=[0.15, 0.90],
+          # anchor_size_bounds=[0.20, 0.90],
+          # anchor_sizes=[(21., 45.),
+          #               (45., 99.),
+          #               (99., 153.),
+          #               (153., 207.),
+          #               (207., 261.),
+          #               (261., 315.)],
+          anchor_sizes=[(0.07, 0.15),
+                        (0.15, 0.33),
+                        (0.33, 0.51),
+                        (0.51, 0.69),
+                        (0.69, 0.87),
+                        (0.87, 1.05)],
+          #anchor_ratios=[[2, .5, 5],
+          #               [2, .5, 3, 1./3, 5],
+          #               [2, .5, 3, 1./3, 5],
+          #               [2, .5, 3, 1./3, 5],
+          #               [2, .5, 5],
+          #               [2, .5, 5]],     # add long ratio boxes
+          anchor_ratios=[[.5, .3, .2, 2, 3, 5],
+                         [.5, .3, .2, 2, 3, 5],
+                         [.5, .3, .2, 2, 3, 5],
+                         [.5, .3, .2, 2, 3, 5],
+                         [.5, .3, .2, 2, 3, 5],
+                         [.5, .3, .2, 2, 3, 5]],
+          anchor_steps=[8, 16, 32, 64, 128, 256],
+          anchor_offset=0.5,
+          normalizations=[20, -1, -1, -1, -1, -1],
+          prior_scaling=[0.1, 0.1, 0.2, 0.2],
+          mbox_kernel = [(3, 5),
+                         (3, 5),
+                         (3, 5),
+                         (3, 5),
+                         (3, 5),
+                         (1, 1)]
+          )
+
+    def __init__(self, params=None):
+        if isinstance(params, STVParams):
+            self.params = params
+        else:
+            self.params = DetectionNet.default_params
+
+    def anchors(self):
+        return ssd_anchors_all_layers(img_shape=self.params.img_shape,
+                           layers_shape=self.params.feat_shapes,
+                           anchor_sizes=self.params.anchor_sizes,
+                           anchor_ratios=self.params.anchor_ratios,
+                           anchor_steps=self.params.anchor_steps,
+                           offset=self.params.anchor_offset,
+                           dtype=np.float32)
+
+    def model(self, images):
+        return model(images,
+                    num_classes=self.params.num_classes,
+                    feat_layers=self.params.feat_layers,
+                    anchor_sizes=self.params.anchor_sizes,
+                    anchor_ratios=self.params.anchor_ratios,
+                    normalizations=self.params.normalizations,
+                    kernels=self.params.mbox_kernel)
+
+
+
+
+def redefine_params(default_params, img_width, img_height):
+    default_bk = default_params._replace(feat_shape=[(math.ceil(img_height / 8), math.ceil(img_width / 8)),
+                                                    (math.ceil(img_height / 16), math.ceil(img_width / 16)),
+                                                    (math.ceil(img_height / 32), math.ceil(img_width / 32)),
+                                                    (math.ceil(img_height / 64), math.ceil(img_width / 64)),
+                                                    (math.ceil(img_height / 128), math.ceil(img_width / 128)),
+                                                    (math.ceil(img_height / 256), math.ceil(img_width / 256))])
+    default_bk = default_bk._replace(img_shape=(img_height, img_width))
+    return default_bk
+
+
+    # default_params = STVParams(
+    #     img_shape=(img_height, img_width),
+    #     num_classes=default_bk.num_classes,
+    #     feat_layers=default_bk.feat_layers,
+    #     feat_shape=[(math.ceil(img_height / 8), math.ceil(img_width / 8)),
+    #                 (math.ceil(img_height / 16), math.ceil(img_width / 16)),
+    #                 (math.ceil(img_height / 32), math.ceil(img_width / 32)),
+    #                 (math.ceil(img_height / 64), math.ceil(img_width / 64)),
+    #                 (math.ceil(img_height / 128), math.ceil(img_width / 128)),
+    #                 (math.ceil(img_height / 256), math.ceil(img_width / 256))],
+    #     anchor_size_bounds=default_bk.anchor_size_bounds,
+    #     anchor_sizes=default_bk.anchor_sizes,
+    #     anchor_ratios=default_bk.anchor_ratios,
+    #     anchor_steps=default_bk.anchor_steps,
+    #     anchor_offset=default_bk.anchor_offset,
+    #     normalizations=default_bk.normalizations,
+    #     prior_scaling=default_bk.prior_scaling
+    #     )
 
 def stv_arg_scope(weight_decay=0.0005, data_format='NHWC'):
     """Defines the VGG arg scope.
@@ -117,12 +155,12 @@ def stv_arg_scope(weight_decay=0.0005, data_format='NHWC'):
                 return sc
 
 def model(images,
-          num_classes=default_params.num_classes,
-          feat_layers=default_params.feat_layers,
-          anchor_sizes=default_params.anchor_sizes,
-          anchor_ratios=default_params.anchor_ratios,
-          normalizations=default_params.normalizations,
-          kernels=default_params.mbox_kernel,
+          num_classes, #=default_params.num_classes,
+          feat_layers, #=default_params.feat_layers,
+          anchor_sizes, #=default_params.anchor_sizes,
+          anchor_ratios, #=default_params.anchor_ratios,
+          normalizations, #=default_params.normalizations,
+          kernels, #=default_params.mbox_kernel,
           prediction_fn=slim.softmax,
           reuse=None,
           weight_decay=1e-5,
@@ -265,13 +303,13 @@ def tensor_shape(x, rank=3):
 
 
 # return anchors
-def ssd_anchors_all_layers(img_shape=default_params.img_shape,
-                           layers_shape=default_params.feat_shapes,
-                           anchor_sizes=default_params.anchor_sizes,
-                           anchor_ratios=default_params.anchor_ratios,
-                           anchor_steps=default_params.anchor_steps,
-                           offset=default_params.anchor_offset,
-                           dtype=np.float32):
+def ssd_anchors_all_layers(img_shape, #=default_params.img_shape,
+                           layers_shape, #=default_params.feat_shapes,
+                           anchor_sizes, #=default_params.anchor_sizes,
+                           anchor_ratios, #=default_params.anchor_ratios,
+                           anchor_steps, #=default_params.anchor_steps,
+                           offset, #=default_params.anchor_offset,
+                           dtype) #=np.float32):
     """Compute anchor boxes for all feature layers.
     """
     layers_anchors = []
@@ -356,7 +394,7 @@ def detected_bboxes(predictions, localisations,
     rscores, rbboxes = \
         tf_ssd_bboxes_select(predictions, localisations,
                              select_threshold=select_threshold,
-                             num_classes=default_params.num_classes)
+                             num_classes=2)
     rscores, rbboxes = \
         tfe.bboxes_sort(rscores, rbboxes, top_k=top_k)
     # Apply NMS algorithm.
@@ -496,8 +534,10 @@ def tf_ssd_bboxes_decode_layer(feat_localizations,
 
 def tf_ssd_bboxes_decode(feat_localizations,
                          anchors,
+                         steps,
+                         img_shape,
+                         prior_scaling, #=default_params.prior_scaling,
                          offset=False,
-                         prior_scaling=default_params.prior_scaling,
                          scope='ssd_bboxes_decode'):
     """Compute the relative bounding boxes from the SSD net features and
     reference anchors bounding boxes.
@@ -509,8 +549,8 @@ def tf_ssd_bboxes_decode(feat_localizations,
     Return:
       List of Tensors Nx4: ymin, xmin, ymax, xmax
     """
-    steps = default_params.anchor_steps
-    img_shape = default_params.img_shape
+    # steps = default_params.anchor_steps
+    # img_shape = default_params.img_shape
 
     with tf.name_scope(scope):
         bboxes = []
@@ -534,7 +574,7 @@ def tf_ssd_bboxes_decode(feat_localizations,
 def tf_ssd_bboxes_encode(labels,
                          bboxes,
                          anchors,
-                         num_classes=default_params.num_classes,
+                         num_classes=2,
                          # no_annotation_label,
                          ignore_threshold=0.5,
                          prior_scaling=[0.1, 0.1, 0.2, 0.2],
@@ -574,7 +614,9 @@ def tf_ssd_bboxes_batch_encode(labels,
                          bboxes,
                          anchors,
                          batch_size,
-                         num_classes=default_params.num_classes,
+                         steps,
+                         img_shape,
+                         num_classes=2,
                          # no_annotation_label,
                          ignore_threshold=0.5,
                          prior_scaling=[0.1, 0.1, 0.2, 0.2],
@@ -594,8 +636,8 @@ def tf_ssd_bboxes_batch_encode(labels,
       (target_labels, target_localizations, target_scores):
         Each element is a list of target Tensors.
     """
-    steps = default_params.anchor_steps
-    img_shape = default_params.img_shape
+    # steps = default_params.anchor_steps
+    # img_shape = default_params.img_shape
 
     with tf.name_scope(scope):
         target_labels = []

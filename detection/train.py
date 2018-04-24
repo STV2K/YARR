@@ -96,9 +96,15 @@ def train():
         bboxes = tf.placeholder(tf.float32, shape=[None, None, 4], name='bboxes')
         inputs = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='inputs')
 
-        anchors = STVNet.ssd_anchors_all_layers()
-        predictions, localisations, logits, end_points = STVNet.model(inputs)
-        gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_batch_encode(label, bboxes, anchors, config.FLAGS.batch_size)
+        params = STVNet.redefine_params(DetectionNet.default_params, config.FLAGS.input_size_width, config.FLAGS.input_size_height)
+        detection_net = DetectionNet(params)
+
+        anchors = detection_net.anchors() #STVNet.ssd_anchors_all_layers()
+        predictions, localisations, logits, end_points = detection_net.model(inputs) #STVNet.model(inputs)
+        gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_batch_encode(label, bboxes, anchors,
+                                                                      config.FLAGS.batch_size,
+                                                                      detection_net.params.anchor_steps,
+                                                                      detection_net.params.img_shape)
         #print('localisations: ', localisations)
         #print('logits: ', logits)
         #print('gclasses: ', gclasses)

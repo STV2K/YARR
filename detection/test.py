@@ -71,13 +71,20 @@ def test(img_name):
         inputs = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='inputs')
         b_gdifficults = tf.zeros(tf.shape(label), dtype=tf.int64)
 
-        anchors = STVNet.ssd_anchors_all_layers()
-        predictions, localisations, logits, end_points = STVNet.model(inputs, is_training=True)
-        #gclasses, glocal, gscores = STVNet.tf_ssd_bboxes_encode(label, bboxes, anchors)
-        #pos_loss, neg_loss, loc_loss, _ = STVNet.ssd_losses(logits, localisations, gclasses, glocal, gscores)
+        # anchors = STVNet.ssd_anchors_all_layers()
+        # predictions, localisations, logits, end_points = STVNet.model(inputs, is_training=True)
+        params = STVNet.redefine_params(DetectionNet.default_params, config.FLAGS.input_size_width, config.FLAGS.input_size_height)
+        detection_net = DetectionNet(params)
+
+        anchors = detection_net.anchors() #STVNet.ssd_anchors_all_layers()
+        predictions, localisations, logits, end_points = detection_net.model(inputs) #STVNet.model(inputs)
 
         # with tf.device('/device:CPU:0'):
-        pre_locals = STVNet.tf_ssd_bboxes_decode(localisations, anchors, offset=True, scope='bboxes_decode')
+        pre_locals = STVNet.tf_ssd_bboxes_decode(localisations, anchors,
+                                                 detection_net.params.anchor_steps,
+                                                 detection_net.params.img_shape,
+                                                 detection_net.params.prior_scaling,
+                                                 offset=True, scope='bboxes_decode')
         pre_scores, pre_bboxes = STVNet.detected_bboxes(predictions, pre_locals,
                                                         select_threshold=config.FLAGS.select_threshold,
                                                         nms_threshold=config.FLAGS.nms_threshold,
