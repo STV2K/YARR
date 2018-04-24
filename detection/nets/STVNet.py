@@ -112,25 +112,6 @@ def redefine_params(default_params, img_width, img_height):
     return default_bk
 
 
-    # default_params = STVParams(
-    #     img_shape=(img_height, img_width),
-    #     num_classes=default_bk.num_classes,
-    #     feat_layers=default_bk.feat_layers,
-    #     feat_shape=[(math.ceil(img_height / 8), math.ceil(img_width / 8)),
-    #                 (math.ceil(img_height / 16), math.ceil(img_width / 16)),
-    #                 (math.ceil(img_height / 32), math.ceil(img_width / 32)),
-    #                 (math.ceil(img_height / 64), math.ceil(img_width / 64)),
-    #                 (math.ceil(img_height / 128), math.ceil(img_width / 128)),
-    #                 (math.ceil(img_height / 256), math.ceil(img_width / 256))],
-    #     anchor_size_bounds=default_bk.anchor_size_bounds,
-    #     anchor_sizes=default_bk.anchor_sizes,
-    #     anchor_ratios=default_bk.anchor_ratios,
-    #     anchor_steps=default_bk.anchor_steps,
-    #     anchor_offset=default_bk.anchor_offset,
-    #     normalizations=default_bk.normalizations,
-    #     prior_scaling=default_bk.prior_scaling
-    #     )
-
 def stv_arg_scope(weight_decay=0.0005, data_format='NHWC'):
     """Defines the VGG arg scope.
 
@@ -236,9 +217,10 @@ def model(images,
             predictions = []
             logits = []
             localisations = []
+            angles = []
             for i, layer in enumerate(feat_layers):
                 with tf.variable_scope(layer + '_box'):
-                    p, l = ssd_multibox_layer(end_points[layer],
+                    p, l, a = ssd_multibox_layer(end_points[layer],
                                               num_classes,
                                               anchor_sizes[i],
                                               anchor_ratios[i],
@@ -247,8 +229,9 @@ def model(images,
                 predictions.append(prediction_fn(p))
                 logits.append(p)
                 localisations.append(l)
+                angles.append(a)
 
-        return predictions, localisations, logits, end_points
+        return predictions, localisations, logits, angles, end_points
 
 # for each feature map, calculate the prediction
 def ssd_multibox_layer(inputs,
@@ -283,7 +266,15 @@ def ssd_multibox_layer(inputs,
     cls_pred = custom_layers.channel_to_last(cls_pred)
     cls_pred = tf.reshape(cls_pred,
                           tensor_shape(cls_pred, 4)[:-1]+[num_anchors, num_classes])
-    return cls_pred, loc_pred
+
+    # angle prediction
+    num_angle_pred = num_anchors * 1
+    ang_pred = slim.conv2d(net, num_angle_pred, kernel, activation_fn=None,
+                           scope='conv_loc')
+    ang_pred = custom_layers.channel_to_last(ang_pred)
+    ang_pred = tf.reshape(ang_pred,
+                          tensor_shape(ang_pred, 4)[:-1]+[num_anchors, 1])
+    return cls_pred, loc_pred, ang_pred
 
 
 def tensor_shape(x, rank=3):
@@ -613,6 +604,7 @@ def tf_ssd_bboxes_encode(labels,
 
 def tf_ssd_bboxes_batch_encode(labels,
                          bboxes,
+                         angles,
                          anchors,
                          batch_size,
                          steps,
@@ -657,21 +649,11 @@ def tf_ssd_bboxes_batch_encode(labels,
                 layer_scores = []
                 for j in range(batch_size):
                     t_labels, t_loc, t_scores = \
-                        tf_ssd_bboxes_encode_layer(labels[j], bboxes[j], anchors_layer,
+                        tf_ssd_bboxes_encode_layer(labels[j], bboxes[j], angles[j], anchors_layer,
                                                    num_classes, # no_annotation_label,
                                                    anchors_layer_offset,
                                                    ignore_threshold,
                                                    prior_scaling, dtype)
-
-                    # t_labels_offset, t_loc_offset, t_scores_offset = \
-                    #     tf_ssd_bboxes_encode_layer(labels[j], bboxes[j], anchors_layer_offset,
-                    #                                num_classes, # no_annotation_label,
-                    #                                ignore_threshold,
-                    #                                prior_scaling, dtype)
-
-                    # total_label = tf.concat([t_labels, t_labels_offset], axis=2)
-                    # total_loc = tf.concat([t_loc, t_loc_offset], axis=2)
-                    # total_scores = tf.concat([t_scores, t_scores_offset], axis=2)
                     layer_labels.append(t_labels)
                     layer_localizations.append(t_loc)
                     layer_scores.append(t_scores)
@@ -684,14 +666,12 @@ def tf_ssd_bboxes_batch_encode(labels,
                 target_localizations.append(layer_localizations)
                 target_scores.append(layer_scores)
 
-        #print(target_labels)
-        #print(target_localizations)
-        #print(target_scores)
         return target_labels, target_localizations, target_scores
 
 # encode gt for one layer
 def tf_ssd_bboxes_encode_layer(labels,
                                bboxes,
+                               angles,
                                anchors_layer,
                                num_classes,
                                anchors_layer_offset=None,
@@ -742,6 +722,8 @@ def tf_ssd_bboxes_encode_layer(labels,
     shape = (yref.shape[0], yref.shape[1], num_anchors) # shape:(height, width, num_anchors)
     feat_labels = tf.zeros(shape, dtype=tf.int64)
     feat_scores = tf.zeros(shape, dtype=dtype)
+    feat_angles = tf.zeros(shape, dtype=dtype)
+    feat_zeros = tf.zeros(shape, dtype=dtype)
 
     feat_ymin = tf.zeros(shape, dtype=dtype)
     feat_xmin = tf.zeros(shape, dtype=dtype)
@@ -777,14 +759,14 @@ def tf_ssd_bboxes_encode_layer(labels,
         scores = tf.div(inter_vol, vol_anchors)
         return scores
 
-    def condition(i, feat_labels, feat_scores,
+    def condition(i, feat_labels, feat_scores, feat_angles,
                   feat_ymin, feat_xmin, feat_ymax, feat_xmax):
         """Condition: check label index.
         """
         r = tf.less(i, tf.shape(labels))
         return r[0]
 
-    def body(i, feat_labels, feat_scores,
+    def body(i, feat_labels, feat_scores, feat_angles,
              feat_ymin, feat_xmin, feat_ymax, feat_xmax):
         """Body: update feature labels, scores and bboxes.
         Follow the original SSD paper for that purpose:
@@ -795,6 +777,7 @@ def tf_ssd_bboxes_encode_layer(labels,
         label = labels[i]
         bbox = bboxes[i]
         jaccard = jaccard_with_anchors(bbox)
+        angle_tensor = angles[i]-feat_zeros
         # Mask: check threshold + scores + no annotations + num_classes.
         mask = tf.greater(jaccard, feat_scores)
         # mask = tf.logical_and(mask, tf.greater(jaccard, matching_threshold))
@@ -805,6 +788,7 @@ def tf_ssd_bboxes_encode_layer(labels,
         # Update values using mask.
         feat_labels = imask * label + (1 - imask) * feat_labels
         feat_scores = tf.where(mask, jaccard, feat_scores)
+        feat_angles = tf.where(mask, angle_tensor, feat_angles)
 
         feat_ymin = fmask * bbox[0] + (1 - fmask) * feat_ymin
         feat_xmin = fmask * bbox[1] + (1 - fmask) * feat_xmin
@@ -818,14 +802,14 @@ def tf_ssd_bboxes_encode_layer(labels,
         # # Replace scores by -1.
         # feat_scores = tf.where(mask, -tf.cast(mask, dtype), feat_scores)
 
-        return [i+1, feat_labels, feat_scores,
+        return [i+1, feat_labels, feat_scores, feat_angles,
                 feat_ymin, feat_xmin, feat_ymax, feat_xmax]
     # Main loop definition.
     i = 0
-    [i, feat_labels, feat_scores,
+    [i, feat_labels, feat_scores, feat_angles,
      feat_ymin, feat_xmin,
      feat_ymax, feat_xmax] = tf.while_loop(condition, body,
-                                           [i, feat_labels, feat_scores,
+                                           [i, feat_labels, feat_scores, feat_angles,
                                             feat_ymin, feat_xmin,
                                             feat_ymax, feat_xmax])
     # Transform to center / size.
@@ -840,11 +824,11 @@ def tf_ssd_bboxes_encode_layer(labels,
     feat_w = tf.log(feat_w / wref) / prior_scaling[3]
     # Use SSD ordering: x / y / w / h instead of ours.
     feat_localizations = tf.stack([feat_cx, feat_cy, feat_w, feat_h], axis=-1)
-    return feat_labels, feat_localizations, feat_scores
+    return feat_labels, feat_localizations, feat_scores, feat_angles
 
 
-def ssd_losses(logits, localisations,
-           gclasses, glocalisations, gscores,
+def ssd_losses(logits, localisations, pre_angles,
+           gclasses, glocalisations, gscores, gangles,
            match_threshold=0.5,
            negative_ratio=3.,
            alpha=1.,
@@ -868,18 +852,24 @@ def ssd_losses(logits, localisations,
         fgscores = []
         flocalisations = []
         fglocalisations = []
+        fangles = []
+        fgangles = []
         for i in range(len(logits)):
             flogits.append(tf.reshape(logits[i], [-1, num_classes]))
             fgclasses.append(tf.reshape(gclasses[i], [-1]))
             fgscores.append(tf.reshape(gscores[i], [-1]))
             flocalisations.append(tf.reshape(localisations[i], [-1, 4]))
             fglocalisations.append(tf.reshape(glocalisations[i], [-1, 4]))
+            fangles.append(tf.reshape(pre_angles[i], [-1]))
+            fgangles.append(tf.reshape(gangles[i], [-1]))
         # And concat the crap!
         logits = tf.concat(flogits, axis=0)
         gclasses = tf.concat(fgclasses, axis=0)
         gscores = tf.concat(fgscores, axis=0)
         localisations = tf.concat(flocalisations, axis=0)
         glocalisations = tf.concat(fglocalisations, axis=0)
+        pre_angles = tf.concat(fangles, axis=0)
+        gangles = tf.concat(fgangles, axis=0)
         dtype = logits.dtype
 
         #print('logits: ', logits)
@@ -947,8 +937,16 @@ def ssd_losses(logits, localisations,
             tf.losses.add_loss(loss)
 
             loc_loss = loss
+
+        with tf.name_scope('localization_angle'):
+            weights = tf.expand_dims(alpha * fpmask, axis=-1)
+            loss = 1 - tf.cos(pre_angles - gangles)
+            loss = tf.div(tf.reduce_sum(loss * weights), batch_size, name='value')
+            tf.losses.add_loss(loss)
+
+            angle_loss = loss
         
         # add return to run
         regularization_loss = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
         regular_loss = tf.add_n(regularization_loss)
-        return pos_loss, neg_loss, loc_loss, regular_loss #, ret_loss1, ret_loss2
+        return pos_loss, neg_loss, loc_loss, regular_loss, angle_loss #, ret_loss1, ret_loss2
