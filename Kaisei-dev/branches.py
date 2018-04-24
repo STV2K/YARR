@@ -20,7 +20,7 @@ class DetectionBranch(nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.conv3 = nn.Conv2d(256, 64, kernel_size=1, bias=False)
+        self.conv3 = nn.Conv2d(128, 64, kernel_size=1, bias=False)
         self.conv1_1 = nn.Conv2d(64, 1, kernel_size=1, stride=1,
                                  padding=0, bias=False)
         self.conv1_4 = nn.Conv2d(64, 4, kernel_size=1, stride=1,
@@ -59,6 +59,10 @@ class Kaisei(nn.Module):
         self.resnet = models.resnet50_block()
         self.deconv = models.deconv_block()
         self.detect = DetectionBranch()
+        # if config.on_cuda:
+            # self.resnet.cuda()
+            # self.deconv.cuda()
+            # self.detect.cuda()
 
     def forward(self, x):
         """

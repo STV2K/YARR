@@ -5,7 +5,6 @@
 import argparse
 import random
 
-import models
 import numpy as np
 import torch
 import torch.utils.data
@@ -17,27 +16,31 @@ import tensorboardX
 
 import eval
 import config
+import models
+import helpers
 import branches
 import data_util
 
 
 # gpu_ids = list(range(len(config.gpu_list.split(','))))
 # gpu_id = config.gpu_list
+logger = helpers.ExpLogger(config.log_file_name)
 
 random_seed = random.randint(1, 2292014)
-print("Random seed set to %d" % random_seed)
+logger.tee("Random seed set to %d" % random_seed)
 random.seed(random_seed)
 np.random.seed(random_seed)
 torch.manual_seed(random_seed)
 
+torch.cuda.set_device(config.gpu_list[0])
 cudnn.benchmark = config.on_cuda
 cudnn.enabled = config.on_cuda
 
 train_loader = data_util.DataProvider(batch_size=config.batch_size,
-                                      data_path=config.training_data_path_z440,
+                                      data_path=config.training_data_path_pami2,
                                       is_cuda=config.on_cuda)
 test_loader = data_util.DataProvider(batch_size=config.test_batch_size,
-                                     data_path=config.test_data_path_z440,
+                                     data_path=config.test_data_path_pami2,
                                      is_cuda=config.on_cuda)
 
 
@@ -56,19 +59,14 @@ def weights_init(module):
 kaisei = branches.Kaisei()
 kaisei.apply(weights_init)
 
-# input_images = Variable(torch.FloatTensor(config.batch_size, 3, config.fixed_len, config.fixed_len))
-# input_score_maps = Variable(torch.FloatTensor(config.batch_size, 1, config.fixed_len, config.fixed_len))
-# input_geo_maps = Variable(torch.FloatTensor(config.batch_size, 4, config.fixed_len, config.fixed_len))
-# input_masks = Variable(torch.FloatTensor(config.batch_size, 1, config.fixed_len, config.fixed_len))
-
 if config.continue_train:
-    print('loading pretrained model from %s' % config.ckpt_path)
+    logger.tee('loading pretrained model from %s' % config.ckpt_path)
     kaisei.load_state_dict(torch.load(config.ckpt_path))
 # print(kaisei)
 
 if config.on_cuda:
     kaisei.cuda()
-    kaisei = torch.nn.DataParallel(kaisei, device_ids=config.gpu_list)
+#    kaisei = torch.nn.DataParallel(kaisei, device_ids=config.gpu_list)
 
 # loss average
 loss_avg = eval.LossAverage()
@@ -88,7 +86,7 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
     Adopted from CRNN.
     Valuate.
     """
-    print('Start val===')
+    logger.tee('Start val')
 
     for p in net.parameters():
         p.requires_grad = False
@@ -99,7 +97,7 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
     for i in range(max(len(data_loader.data_iter), max_iter)):
         data = data_loader.next()
         img_batch, score_maps, geo_maps, training_masks = data
-        img_batch = data_util.image_normalize(img_batch, config.STV2K_train_image_channel_means)
+        # img_batch = data_util.image_normalize(img_batch, config.STV2K_train_image_channel_means)
         img_batch = Variable(img_batch)
         score_maps = Variable(score_maps)
         geo_maps = Variable(geo_maps)
@@ -109,7 +107,7 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
         batch_loss = batch_loss / config.batch_size
         loss_avg.add(batch_loss)
 
-    print('Test loss: %f' % (loss_avg.val()))
+    logger.tee('Test loss: %f' % (loss_avg.val()))
     loss_avg.reset()
     # i = 0
     # n_correct = 0
@@ -150,7 +148,7 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
 def train_batch(net, criterion, optimizer):
     data = train_loader.next()
     img_batch, score_maps, geo_maps, training_masks = data
-    img_batch = data_util.image_normalize(img_batch, config.STV2K_train_image_channel_means)
+    # img_batch = data_util.image_normalize(img_batch, config.STV2K_train_image_channel_means)
     img_batch = Variable(img_batch)
     score_maps = Variable(score_maps)
     geo_maps = Variable(geo_maps)
@@ -179,7 +177,11 @@ def train_batch(net, criterion, optimizer):
 
 def detection_train():
     criterion = eval.loss
-
+    if config.on_cuda:
+        logger.tee("Using CUDA device %s id %d" % (torch.cuda.get_device_name(torch.cuda.current_device()),
+                                                   torch.cuda.current_device()))
+    else:
+        logger.tee("CUDA disabled")
     for epoch in range(config.epoch_num):
         epoch_now = train_loader.epoch
         i = 0
@@ -189,17 +191,17 @@ def detection_train():
             kaisei.train()
             cost = train_batch(kaisei, criterion, optimizer)
             loss_avg.add(cost)
-            print(i)
             i += 1
+            epoch_now = train_loader.epoch
 
             if i % config.notify_interval == 0:
-                print('[%d/%d][It-%d] Loss: %f' %
+                logger.tee('[%d/%d][It-%d] Loss: %f' %
                       (epoch, config.epoch_num, i, loss_avg.val()))
                 loss_avg.reset()
 
             if i % config.val_interval == 0:
                 val(kaisei, test_loader, criterion)
-                return 
+
             # checkpoint
             if i % config.ckpt_interval == 0:
                 torch.save(kaisei.state_dict(), '{0}/netKAISEI_{1}_{2}.pth'.format(config.expr_name, epoch, i))

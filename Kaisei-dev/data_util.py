@@ -423,10 +423,10 @@ def generate_rbox(im_size, polys, tag_bools, tag_content, img_name=""):
             edge = fit_line([p0[0], p1[0]], [p0[1], p1[1]])
             backward_edge = fit_line([p0[0], p3[0]], [p0[1], p3[1]])
             forward_edge = fit_line([p1[0], p2[0]], [p1[1], p2[1]])
-            if p2 is None:
-                print("P2 returned None: ", img_name, poly)
-            if np.linalg.norm(p2 - p1) == 0.:
-                print("P2-P1 returned 0: ", img_name, poly)
+            # if p2 is None:
+            #    print("P2 returned None: ", img_name, poly)
+            # if np.linalg.norm(p2 - p1) == 0.:
+            #     print("P2-P1 returned 0: ", img_name, poly)
             if point_dist_to_line(p0, p1, p2) > point_dist_to_line(p0, p1, p3):
                 # 平行线经过p2
                 if edge[1] == 0:
@@ -445,10 +445,13 @@ def generate_rbox(im_size, polys, tag_bools, tag_content, img_name=""):
             # new_p2 = p2
             # new_p3 = p3
             new_p2 = line_cross_point(forward_edge, edge_opposite)
-            if new_p2 is None:
-                print("NP2 returned None: ", img_name, poly)
-            if np.linalg.norm(new_p2 - p0) == 0.:
-                print("NP2-P0 returned 0: ", img_name, poly)
+            # try:
+            #     if new_p2 is None:
+            #         print("NP2 returned None: ", img_name, poly)
+            #     if np.linalg.norm(new_p2 - p0) == 0.:
+            #         print("NP2-P0 returned 0: ", img_name, poly)
+            # except:
+            #     print("Weird occuried ", img_name, poly)
             if point_dist_to_line(p1, new_p2, p0) > point_dist_to_line(p1, new_p2, p3):
                 # across p0
                 if forward_edge[1] == 0:
@@ -668,6 +671,7 @@ class STV2KDetDataset(Dataset):
     def __init__(self, path=config.training_data_path_z440):
         self.image_list = get_image_list(path)
         self.toTensor = transforms.ToTensor()
+        self.data_path = path
 
     def __len__(self):
         return len(self.image_list)
@@ -712,6 +716,13 @@ class DataProvider:
         self.iteration = 0  # iteration num of current epoch
         self.epoch = 0  # total epoch(s) finished
         self.num_workers = num_workers
+        if "train" in data_path:
+           self.image_channel_means = config.STV2K_train_image_channel_means
+        elif "test" in data_path:
+            self.image_channel_means = config.STV2K_test_image_channel_means
+        else:
+            self.image_channel_means = None
+        print("Image channel means set to ", self.image_channel_means, " for dataset on ", data_path)
 
     def build(self):
         data_loader = DataLoader(self.dataset, batch_size=self.batch_size,
@@ -724,6 +735,8 @@ class DataProvider:
         try:
             batch = self.data_iter.next()
             self.iteration += 1
+            if self.image_channel_means is not None:
+                batch[0] = image_normalize(batch[0], self.image_channel_means)
             if self.is_cuda:
                 for i in range(len(batch)):
                     if isinstance(batch[i], torch.Tensor):
@@ -779,7 +792,7 @@ if __name__ == '__main__':
     # img, o = resize_image(img, 3200)
     # print(img.size)
     # img.show()
-    dp = DataProvider(5, num_workers=5, data_path=config.training_data_path)
+    dp = DataProvider(3, num_workers=2, data_path="../testcases")
     while True:
         try:
             dp.next()
@@ -787,3 +800,5 @@ if __name__ == '__main__':
             break
         except Exception as _Eall:
             print(_Eall)
+        if dp.epoch > 0:
+            break

@@ -28,3 +28,9 @@ Confirm Rec Progress - Dict...
 #### RoI Op, Loss Design and Optimizer(19 Apr)
 #### Training, Augmentation(Recognition), OHEM etc. (19 Apr ~)
 #### OPTIONAL: add crayon
+
+
+## Out-of-Box Annotation Files
+ts-0548
+tr-0170
+tr-0874 

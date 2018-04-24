@@ -275,6 +275,11 @@ class DeconvByBilinearUpsampling(nn.Module):
         self.out_channel = out_channel
         # self.conv3 = conv3x3(out_channel, out_channel)
         self.bilinear_upsampling = bilinear_upsampling_2x()
+        self.conv1_1 = [conv1x1(3072, 512), conv1x1(1024, 256), conv1x1(512, 128)]
+        self.conv3_3 = [conv3x3(512, 512), conv3x3(256, 256), conv3x3(128, 128)]
+        for i in range(len(self.conv1_1)):
+            self.add_module("conv1_1-" + str(i), self.conv1_1[i])
+            self.add_module("conv3_3-" + str(i), self.conv3_3[i])
 
     def forward(self, x, residual_layers):
         repeat = len(residual_layers)
@@ -293,8 +298,10 @@ class DeconvByBilinearUpsampling(nn.Module):
             # We adopt concatenating of EAST style.
             # x = torch.add(x, residual)
             x = torch.cat((x, residual), 1)
-            x = conv1x1(x.size()[1], x.size()[1] // 3)(x)
-            x = conv3x3(x.size()[1], x.size()[1])(x)
+            x = self.conv1_1[i](x)
+            x = self.conv3_3[i](x)
+            # x = conv1x1(x.size()[1], x.size()[1] // 3)(x)
+            # x = conv3x3(x.size()[1], x.size()[1])(x)
         return x
 
 
