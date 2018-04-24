@@ -102,12 +102,12 @@ class DetectionNet(object):
 
 
 def redefine_params(default_params, img_width, img_height):
-    default_bk = default_params._replace(feat_shape=[(math.ceil(img_height / 8), math.ceil(img_width / 8)),
+    default_bk = default_params._replace(feat_shapes=[(math.ceil(img_height / 8), math.ceil(img_width / 8)),
                                                     (math.ceil(img_height / 16), math.ceil(img_width / 16)),
                                                     (math.ceil(img_height / 32), math.ceil(img_width / 32)),
                                                     (math.ceil(img_height / 64), math.ceil(img_width / 64)),
                                                     (math.ceil(img_height / 128), math.ceil(img_width / 128)),
-                                                    (math.ceil(img_height / 256), math.ceil(img_width / 256))])
+                                                    (math.ceil(img_height / 128) - 2, math.ceil(img_width / 128) - 2)])
     default_bk = default_bk._replace(img_shape=(img_height, img_width))
     return default_bk
 
@@ -224,7 +224,8 @@ def model(images,
             end_point = 'block10'
             with tf.variable_scope(end_point):
                 net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
-                net = slim.conv2d(net, 256, [3, 3], scope='conv3x3', padding='VALID')
+                net = custom_layers.pad2d(net, pad=(1, 1))
+                net = slim.conv2d(net, 256, [3, 3], stride=2, scope='conv3x3', padding='VALID')
             end_points[end_point] = net
             end_point = 'block11'
             with tf.variable_scope(end_point):
@@ -309,7 +310,7 @@ def ssd_anchors_all_layers(img_shape, #=default_params.img_shape,
                            anchor_ratios, #=default_params.anchor_ratios,
                            anchor_steps, #=default_params.anchor_steps,
                            offset, #=default_params.anchor_offset,
-                           dtype) #=np.float32):
+                           dtype): #=np.float32):
     """Compute anchor boxes for all feature layers.
     """
     layers_anchors = []

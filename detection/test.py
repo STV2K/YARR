@@ -12,9 +12,9 @@ import matplotlib.pyplot as plt
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
-STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_test/'
-ICDAR_Path='/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_test_images/'
-img_name = 'STV2K_ts_0107.jpg' #'img_243.jpg'
+STV2K_Path = '/media/data1/hcxiao/STV2K/stv2k_test/'
+ICDAR_Path='/media/data1/hcxiao/ICDAR15-IST/ch4_test_images/'
+img_name = 'STV2K_ts_0768.jpg' #'img_243.jpg'
 PATH = STV2K_Path
 
 test_all_path = ICDAR_Path
@@ -73,8 +73,8 @@ def test(img_name):
 
         # anchors = STVNet.ssd_anchors_all_layers()
         # predictions, localisations, logits, end_points = STVNet.model(inputs, is_training=True)
-        params = STVNet.redefine_params(DetectionNet.default_params, config.FLAGS.input_size_width, config.FLAGS.input_size_height)
-        detection_net = DetectionNet(params)
+        params = STVNet.redefine_params(STVNet.DetectionNet.default_params, config.FLAGS.input_size_width, config.FLAGS.input_size_height)
+        detection_net = STVNet.DetectionNet(params)
 
         anchors = detection_net.anchors() #STVNet.ssd_anchors_all_layers()
         predictions, localisations, logits, end_points = detection_net.model(inputs) #STVNet.model(inputs)
@@ -111,8 +111,7 @@ def test(img_name):
 
             pre_s, pre_box = sess.run([pre_scores, pre_bboxes],
                                       feed_dict={inputs: [im]})
-                                      #label: gt_labels,
-                                      #bboxes: gt_bboxes})
+            
             img = Image.open(PATH + img_name)
             img = np.array(img)
 
@@ -121,10 +120,7 @@ def test(img_name):
             # fig = plt.figure(figsize=(12, 12))
             # plt.imshow(img)
             result_img = Image.fromarray(np.uint8(img))
-            result_img.save('results/offset/result-v3-20600-' + img_name)
-            #print('positive loss: ', p_loss)
-            #print('negtive loss: ', n_loss)
-            #print('localisation loss: ', lc_loss)
+            result_img.save('results/result-' + str(config.FLAGS.input_size_width) + '-' + ckpt_path.split('-')[-1] + '-' + img_name)
 
 
 def test_all(dir_path):
@@ -221,7 +217,7 @@ def bboxes_draw_on_img(img, scores, bboxes, threshold, color, thickness=5):
 
 
 if __name__ == '__main__':
-#    test(img_name)
-    test_all(test_all_path)
+    test(img_name)
+#    test_all(test_all_path)
     
 

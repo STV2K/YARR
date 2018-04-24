@@ -10,9 +10,10 @@ from nets import STVNet
 
 tf.logging.set_verbosity(tf.logging.INFO)
 slim = tf.contrib.slim
-os.environ["CUDA_VISIBLE_DEVICES"] = "3" # config.FLAGS.gpu_list
+os.environ["CUDA_VISIBLE_DEVICES"] = "1" # config.FLAGS.gpu_list
+log_dir='/home/hcxiao/Logs/tensorlog'
 model_dir='/home/hcxiao/Codes/YARR/detection/models/'
-save_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet-6scales/mix/'
+save_dir='/home/hcxiao/Codes/xhc_dev/YARR/detection/models/stvnet-6scales/mix/'
 model_name='VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt' # .data-00000-of-00001'
 
 img_width = config.FLAGS.input_size_width
@@ -96,8 +97,8 @@ def train():
         bboxes = tf.placeholder(tf.float32, shape=[None, None, 4], name='bboxes')
         inputs = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='inputs')
 
-        params = STVNet.redefine_params(DetectionNet.default_params, config.FLAGS.input_size_width, config.FLAGS.input_size_height)
-        detection_net = DetectionNet(params)
+        params = STVNet.redefine_params(STVNet.DetectionNet.default_params, config.FLAGS.input_size_width, config.FLAGS.input_size_height)
+        detection_net = STVNet.DetectionNet(params)
 
         anchors = detection_net.anchors() #STVNet.ssd_anchors_all_layers()
         predictions, localisations, logits, end_points = detection_net.model(inputs) #STVNet.model(inputs)
@@ -150,7 +151,7 @@ def train():
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
 
-            summary_writer = tf.summary.FileWriter('/home/hcxiao/STVLogs/tensorLog', sess.graph)
+            summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
             batch_size = config.FLAGS.batch_size
 
             step = 1
