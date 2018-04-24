@@ -15,8 +15,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 img_width = config.FLAGS.input_size_width
 img_height = config.FLAGS.input_size_height
-train_image_path = '/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_train_images/'
-train_gt_path = '/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_train_gts/'
+train_image_path = '/media/data1/hcxiao/ICDAR15-IncidentalSceneText/ch4_train_images/'
+train_gt_path = '/media/data1/hcxiao/ICDAR15-IncidentalSceneText/ch4_train_gts/'
 
 
 def resize_image(image, size,
@@ -342,25 +342,25 @@ def run(output_dir, shuffling=False, name='icdar'):
 # IMAGE_WIDTH = 300
 
 # filenames = '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord'
-stv2k_filenames = ['/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord',
-                   '/media/data2/hcx_data/STV2KTF/STV2K_0001.tfrecord',
-                   '/media/data2/hcx_data/STV2KTF/STV2K_0002.tfrecord',
-                   '/media/data2/hcx_data/STV2KTF/STV2K_0003.tfrecord',
-                   '/media/data2/hcx_data/STV2KTF/STV2K_0004.tfrecord',
-                   '/media/data2/hcx_data/STV2KTF/STV2K_0005.tfrecord',
-                   '/media/data2/hcx_data/STV2KTF/STV2K_0006.tfrecord']
-icdar_filenames = ['/media/data2/hcx_data/ICDARTF/icdar_0000.tfrecord',
-                   '/media/data2/hcx_data/ICDARTF/icdar_0001.tfrecord',
-                   '/media/data2/hcx_data/ICDARTF/icdar_0002.tfrecord',
-                   '/media/data2/hcx_data/ICDARTF/icdar_0003.tfrecord',
-                   '/media/data2/hcx_data/ICDARTF/icdar_0004.tfrecord',
-                   '/media/data2/hcx_data/ICDARTF/icdar_0005.tfrecord',
-                   '/media/data2/hcx_data/ICDARTF/icdar_0006.tfrecord',
-                   '/media/data2/hcx_data/ICDARTF/icdar_0007.tfrecord',
-                   '/media/data2/hcx_data/ICDARTF/icdar_0008.tfrecord',
-                   '/media/data2/hcx_data/ICDARTF/icdar_0009.tfrecord']
+stv2k_filenames = ['/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0000.tfrecord',
+                   '/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0001.tfrecord',
+                   '/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0002.tfrecord',
+                   '/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0003.tfrecord',
+                   '/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0004.tfrecord',
+                   '/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0005.tfrecord',
+                   '/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0006.tfrecord']
+icdar_filenames = ['/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0000.tfrecord',
+                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0001.tfrecord',
+                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0002.tfrecord',
+                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0003.tfrecord',
+                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0004.tfrecord',
+                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0005.tfrecord',
+                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0006.tfrecord',
+                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0007.tfrecord',
+                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0008.tfrecord',
+                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0009.tfrecord']
 train_filenames = stv2k_filenames + icdar_filenames
-val_filenames = ['/media/data2/hcx_data/STV2KTF/STV2K_0003.tfrecord']
+val_filenames = ['/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0003.tfrecord']
 
 
 def read_data(train=True):
