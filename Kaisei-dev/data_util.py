@@ -611,6 +611,27 @@ def exchange_point_axis(p):
     return np.array([p[1], p[0]])
 
 
+def alphabet_gen(paths):
+    alphabet = []
+    for path in paths:
+        img_list = get_image_list(path)
+
+        for img_path in img_list:
+            img_filename = str(os.path.basename(img_path))
+            label_path = img_path.replace(img_filename.split('.')[1], 'txt')
+            _, content, __ = load_annotation(label_path)
+            for line in content:
+                alphabet += line
+
+    return list(set(alphabet))
+
+
+def write_alphabet(alphabet, filename, encoding="GBK"):
+    with open(filename, "w", encoding=encoding) as f:
+        for line in alphabet:
+            f.write(line + '\n')
+
+
 def calc_image_channel_mean(img_list):
     sum_up = np.array([0., 0., 0.])
     for img in tqdm(img_list):

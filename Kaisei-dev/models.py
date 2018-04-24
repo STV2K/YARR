@@ -15,7 +15,7 @@ from layers import *
 
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
-           'resnet152']
+           'resnet152', 'BidirectionalLSTM']
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
     'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
@@ -104,65 +104,65 @@ class Bottleneck(nn.Module):
         return out
 
 
-class ResNet(nn.Module):
-    """
-    ResNet adopted from torchvision.
-    """
-    def __init__(self, block, layers, num_classes=1000):
-        self.inplanes = 64
-        super(ResNet, self).__init__()
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
-                               bias=False)
-        self.bn1 = nn.BatchNorm2d(64)
-        self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, layers[0])
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
-        self.avgpool = nn.AvgPool2d(7, stride=1)
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
-
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2. / n))
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-
-    def _make_layer(self, block, planes, blocks, stride=1):
-        downsample = None
-        if stride != 1 or self.inplanes != planes * block.expansion:
-            downsample = nn.Sequential(
-                nn.Conv2d(self.inplanes, planes * block.expansion,
-                          kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(planes * block.expansion),
-            )
-
-        layers = [block(self.inplanes, planes, stride, downsample)]
-        self.inplanes = planes * block.expansion
-        for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes))
-
-        return nn.Sequential(*layers)
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
-
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
-
-        x = self.avgpool(x)
-        x = x.view(x.size(0), -1)
-        x = self.fc(x)
-
-        return x
+# class ResNet(nn.Module):
+#     """
+#     ResNet adopted from torchvision.
+#     """
+#     def __init__(self, block, layers, num_classes=1000):
+#         self.inplanes = 64
+#         super(ResNet, self).__init__()
+#         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
+#                                bias=False)
+#         self.bn1 = nn.BatchNorm2d(64)
+#         self.relu = nn.ReLU(inplace=True)
+#         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+#         self.layer1 = self._make_layer(block, 64, layers[0])
+#         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+#         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+#         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+#         self.avgpool = nn.AvgPool2d(7, stride=1)
+#         self.fc = nn.Linear(512 * block.expansion, num_classes)
+#
+#         for m in self.modules():
+#             if isinstance(m, nn.Conv2d):
+#                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+#                 m.weight.data.normal_(0, math.sqrt(2. / n))
+#             elif isinstance(m, nn.BatchNorm2d):
+#                 m.weight.data.fill_(1)
+#                 m.bias.data.zero_()
+#
+#     def _make_layer(self, block, planes, blocks, stride=1):
+#         downsample = None
+#         if stride != 1 or self.inplanes != planes * block.expansion:
+#             downsample = nn.Sequential(
+#                 nn.Conv2d(self.inplanes, planes * block.expansion,
+#                           kernel_size=1, stride=stride, bias=False),
+#                 nn.BatchNorm2d(planes * block.expansion),
+#             )
+#
+#         layers = [block(self.inplanes, planes, stride, downsample)]
+#         self.inplanes = planes * block.expansion
+#         for i in range(1, blocks):
+#             layers.append(block(self.inplanes, planes))
+#
+#         return nn.Sequential(*layers)
+#
+#     def forward(self, x):
+#         x = self.conv1(x)
+#         x = self.bn1(x)
+#         x = self.relu(x)
+#         x = self.maxpool(x)
+#
+#         x = self.layer1(x)
+#         x = self.layer2(x)
+#         x = self.layer3(x)
+#         x = self.layer4(x)
+#
+#         x = self.avgpool(x)
+#         x = x.view(x.size(0), -1)
+#         x = self.fc(x)
+#
+#         return x
 
 
 class ResNetAsBlock(nn.Module):
@@ -228,37 +228,37 @@ class ResNetAsBlock(nn.Module):
         return x
 
 
-class DeconvByBilinearUpsamplingConcat(nn.Module):
-    """
-    Deconvolution layer, consisting a convolution layer to reduce channels,
-    a bilinear upsampling op and concatenating layers from ResNet block.
-    This idea is adopted from [FOTS]() paper, though we are not able to know
-    how did they implement this, thus this class comes with NO GUARANTEE.
-    """
-
-    def __init__(self, in_planes, residual_layers, repeat, channel_shrunk_factor, stride=1):
-        super().__init__()
-        self.channel_shrunk_factor = channel_shrunk_factor
-        self.now_planes = in_planes
-        self.bilinear_upsampling = bilinear_upsampling_2x()
-        self.residual_layers = residual_layers
-        self.repeat = repeat
-
-    def forward(self, x):
-        for i in range(self.repeat):
-            self.conv = conv3x3(self.now_planes, self.now_planes // self.channel_shrunk_factor)
-            x = self.conv(x)
-            x = self.bilinear_upsampling(x)
-            if i < len(self.residual_layers):
-                residual = self.residual_layers[- (i + 1)]
-                # Pad residuals with odd image h/w
-                if x.size()[2] > residual.size()[2]:
-                    residual = nn.ZeroPad2d((0, 0, x.size()[2] - residual.size()[2], 0))(residual)
-                if x.size()[3] > residual.size()[3]:
-                    residual = nn.ZeroPad2d((0, 0, 0, x.size()[3] - residual.size()[3]))(residual)
-                x = torch.cat((x, residual), 1)
-            self.now_planes //= 2
-        return x
+# class DeconvByBilinearUpsamplingConcat(nn.Module):
+#     """
+#     Deconvolution layer, consisting a convolution layer to reduce channels,
+#     a bilinear upsampling op and concatenating layers from ResNet block.
+#     This idea is adopted from [FOTS]() paper, though we are not able to know
+#     how did they implement this, thus this class comes with NO GUARANTEE.
+#     """
+#
+#     def __init__(self, in_planes, residual_layers, repeat, channel_shrunk_factor, stride=1):
+#         super().__init__()
+#         self.channel_shrunk_factor = channel_shrunk_factor
+#         self.now_planes = in_planes
+#         self.bilinear_upsampling = bilinear_upsampling_2x()
+#         self.residual_layers = residual_layers
+#         self.repeat = repeat
+#
+#     def forward(self, x):
+#         for i in range(self.repeat):
+#             self.conv = conv3x3(self.now_planes, self.now_planes // self.channel_shrunk_factor)
+#             x = self.conv(x)
+#             x = self.bilinear_upsampling(x)
+#             if i < len(self.residual_layers):
+#                 residual = self.residual_layers[- (i + 1)]
+#                 # Pad residuals with odd image h/w
+#                 if x.size()[2] > residual.size()[2]:
+#                     residual = nn.ZeroPad2d((0, 0, x.size()[2] - residual.size()[2], 0))(residual)
+#                 if x.size()[3] > residual.size()[3]:
+#                     residual = nn.ZeroPad2d((0, 0, 0, x.size()[3] - residual.size()[3]))(residual)
+#                 x = torch.cat((x, residual), 1)
+#             self.now_planes //= 2
+#         return x
 
 
 class DeconvByBilinearUpsampling(nn.Module):
@@ -303,6 +303,25 @@ class DeconvByBilinearUpsampling(nn.Module):
             # x = conv1x1(x.size()[1], x.size()[1] // 3)(x)
             # x = conv3x3(x.size()[1], x.size()[1])(x)
         return x
+
+
+class BidirectionalLSTM(nn.Module):
+
+    def __init__(self, nIn, nHidden, nOut):
+        super(BidirectionalLSTM, self).__init__()
+
+        self.rnn = nn.LSTM(nIn, nHidden, bidirectional=True)
+        self.embedding = nn.Linear(nHidden * 2, nOut)
+
+    def forward(self, input):
+        recurrent, _ = self.rnn(input)
+        T, b, h = recurrent.size()
+        t_rec = recurrent.view(T * b, h)
+
+        output = self.embedding(t_rec)  # [T * b, nOut]
+        output = output.view(T, b, -1)
+
+        return output
 
 
 def resnet50_block():

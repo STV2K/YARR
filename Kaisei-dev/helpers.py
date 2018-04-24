@@ -36,7 +36,7 @@ class ExpLogger(object):
             handler = logging.handlers.RotatingFileHandler(self.logfile, maxBytes=1024 * 1024, backupCount=5,
                                                            encoding="utf-8")
             # Set up formatter for handler
-            fmt = '%(asctime)s\n%(filename)s:%(lineno)s\t%(message)s\t | %(funcName)s'
+            fmt = '%(asctime)s\t%(message)s'
             formatter = logging.Formatter(fmt)
             handler.setFormatter(formatter)
 

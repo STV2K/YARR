@@ -32,6 +32,7 @@ random.seed(random_seed)
 np.random.seed(random_seed)
 torch.manual_seed(random_seed)
 
+# Assume on single GPU
 torch.cuda.set_device(config.gpu_list[0])
 cudnn.benchmark = config.on_cuda
 cudnn.enabled = config.on_cuda
@@ -196,7 +197,7 @@ def detection_train():
 
             if i % config.notify_interval == 0:
                 logger.tee('[%d/%d][It-%d] Loss: %f' %
-                      (epoch, config.epoch_num, i, loss_avg.val()))
+                           (train_loader.epoch, config.epoch_num, i, loss_avg.val()))
                 loss_avg.reset()
 
             if i % config.val_interval == 0:

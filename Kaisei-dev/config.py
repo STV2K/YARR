@@ -39,16 +39,16 @@ box_threshold = 0.1
 nms_threshold = 0.2
 
 # GPU Training Settings
-data_loader_worker_num = 1  # Setting to 0 will load data in the main process
+data_loader_worker_num = 4  # Setting to 0 will load data in the main process
 gpu_list = [0]
 batch_size = 8  # set to 16 during training
 test_batch_size = 8
 test_iter_num = 5
 iter_num = 1000
 epoch_num = 30
-val_interval = 512
+val_interval = 500
 notify_interval = 30
-ckpt_interval = 512
+ckpt_interval = 500
 ckpt_path = "./save_points"
 on_cuda = True
 continue_train = False
