@@ -95,7 +95,8 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
     net.eval()
     data_loader = test_loader
 
-    for i in range(max(len(data_loader.data_iter), max_iter)):
+    # for i in range(max(len(data_loader.data_iter), max_iter)): TODO: Check here
+    for i in range(max_iter):
         data = data_loader.next()
         img_batch, score_maps, geo_maps, training_masks = data
         # img_batch = data_util.image_normalize(img_batch, config.STV2K_train_image_channel_means)

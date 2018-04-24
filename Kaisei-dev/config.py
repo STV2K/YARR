@@ -11,6 +11,7 @@ training_data_path_pami2 = "/media/data1/hcxiao/STV2K/stv2k_train"
 test_data_path_pami2 = "/media/data1/hcxiao/STV2K/stv2k_test"
 training_data_path_z440 = "/home/xhuang/Research/Datasets/STV2K_New/stv2k_train"
 test_data_path_z440 = "/home/xhuang/Research/Datasets/STV2K_New/stv2k_test"
+alphabet_filename = "stv2k_alphabet_2784_no-blank.txt"
 
 expr_name = "Kaisei-det"
 log_file_name = expr_name + "_fixlr-5e-5_run1"
