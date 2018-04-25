@@ -13,7 +13,7 @@ slim = tf.contrib.slim
 os.environ["CUDA_VISIBLE_DEVICES"] = "1" # config.FLAGS.gpu_list
 log_dir='/home/hcxiao/Logs/tensorlog'
 model_dir='/home/hcxiao/Codes/YARR/detection/models/'
-save_dir='/home/hcxiao/Codes/xhc_dev/YARR/detection/models/stvnet-6scales/mix/'
+save_dir='/home/hcxiao/Codes/xhc_dev/YARR/detection/models/angles/1'
 model_name='VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt' # .data-00000-of-00001'
 
 img_width = config.FLAGS.input_size_width
@@ -33,16 +33,18 @@ def get_model_data(model):
     return var_map, reader
 
 def get_angle(poly):
+    poly = np.array(poly)
     p_lowest = np.argmax(poly[:, 1])
     if np.count_nonzero(poly[:, 1] == poly[p_lowest, 1]) == 2:
-        # 底边平行于X轴, 那么p0为左上角
         return 0.
     else:
-        # 找到最低点右边的点
         p_lowest_right = (p_lowest - 1) % 4
         # p_lowest_left = (p_lowest + 1) % 4
-        angle = np.arctan(
-            -(poly[p_lowest][1] - poly[p_lowest_right][1]) / (poly[p_lowest][0] - poly[p_lowest_right][0]))
+        divide_num = (poly[p_lowest][0] - poly[p_lowest_right][0])
+        if divide_num == 0:
+            angle = 0
+        else:
+            angle = np.arctan(-(poly[p_lowest][1] - poly[p_lowest_right][1]) / divide_num)
 
         if angle / np.pi * 180 > 45:
             return -(np.pi / 2 - angle)
@@ -77,9 +79,9 @@ def turn_into_bbox(x1, x2, x3, x4, y1, y2, y3, y4, num):
         area =  np.sum(edge) / 2.
 
         if area > 0:
-            angle = get_angle([[x1, y1], [x2, y2], [x3, y3], [x4, y4]])
+            angle = get_angle([[x1[i], y1[i]], [x2[i], y2[i]], [x3[i], y3[i]], [x4[i], y4[i]]])
         else:
-            angle = get_angle([[x1, y1], [x4, y4], [x3, y3], [x2, y2]])
+            angle = get_angle([[x1[i], y1[i]], [x4[i], y4[i]], [x3[i], y3[i]], [x2[i], y2[i]]])
 
         bbox = np.clip([ymin, xmin, ymax, xmax], 0.0, 1.0)
         bboxes.append(bbox)
@@ -180,7 +182,7 @@ def train():
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
 
-#            summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
+            summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
             batch_size = config.FLAGS.batch_size
 
             step = 1
@@ -194,25 +196,22 @@ def train():
                 #print(b_labels.shape)
                 #print(b_bboxes.shape)
                     
-                _, ploss, nloss, lcloss, aloss, ga, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, angle_loss, gangles, merged],
+                _, ploss, nloss, lcloss, aloss, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, angle_loss, merged],
                                                                 feed_dict={inputs: b_image, label: b_labels, bboxes: b_bboxes, angles:b_angles})
 
-                print(ga[0].shape)
-                print(ga[5])
+                summary_writer.add_summary(summary_str, step)
+                summary_writer.flush()
 
-#                summary_writer.add_summary(summary_str, step)
-#                summary_writer.flush()
-
-#                tf.logging.info('%s: Step %d: PositiveLoss = %.2f' % (datetime.now(), step, ploss))#sum_ploss / (batch_size - flag)))
-#                tf.logging.info('%s: Step %d: NegtiveLoss = %.2f' % (datetime.now(), step, nloss))#sum_nloss / (batch_size - flag)))
-#                tf.logging.info('%s: Step %d: LocalizationLoss = %.2f' % (datetime.now(), step, lcloss))#sum_lcloss / (batch_size - flag)))
-#                tf.logging.info('%s: Step %d: LocalizationAngleLoss = %.2f' % (datetime.now(), step, aloss))
+                tf.logging.info('%s: Step %d: PositiveLoss = %.2f' % (datetime.now(), step, ploss))#sum_ploss / (batch_size - flag)))
+                tf.logging.info('%s: Step %d: NegtiveLoss = %.2f' % (datetime.now(), step, nloss))#sum_nloss / (batch_size - flag)))
+                tf.logging.info('%s: Step %d: LocalizationLoss = %.2f' % (datetime.now(), step, lcloss))#sum_lcloss / (batch_size - flag)))
+                tf.logging.info('%s: Step %d: LocalizationAngleLoss = %.2f' % (datetime.now(), step, aloss))
 
                 if step % 200 == 0:
                     saver.save(sess, save_dir + 'stvnet.ckpt', global_step=step)
                 step += 1
 
-                while_flag = False
+#                while_flag = False
 
 
             coord.request_stop()

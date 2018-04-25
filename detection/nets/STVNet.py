@@ -270,7 +270,7 @@ def ssd_multibox_layer(inputs,
     # angle prediction
     num_angle_pred = num_anchors * 1
     ang_pred = slim.conv2d(net, num_angle_pred, kernel, activation_fn=None,
-                           scope='conv_loc')
+                           scope='conv_ang')
     ang_pred = custom_layers.channel_to_last(ang_pred)
     ang_pred = tf.reshape(ang_pred,
                           tensor_shape(ang_pred, 4)[:-1]+[num_anchors, 1])
@@ -636,6 +636,7 @@ def tf_ssd_bboxes_batch_encode(labels,
         target_labels = []
         target_localizations = []
         target_scores = []
+        target_angles = []
         for i, anchors_layer in enumerate(anchors):
             y, x, h, w = anchors_layer
             y_offset = y + 0.5 * steps[i] / img_shape[0]
@@ -647,8 +648,9 @@ def tf_ssd_bboxes_batch_encode(labels,
                 layer_labels = []
                 layer_localizations = []
                 layer_scores = []
+                layer_angles = []
                 for j in range(batch_size):
-                    t_labels, t_loc, t_scores = \
+                    t_labels, t_loc, t_scores, t_angles = \
                         tf_ssd_bboxes_encode_layer(labels[j], bboxes[j], angles[j], anchors_layer,
                                                    num_classes, # no_annotation_label,
                                                    anchors_layer_offset,
@@ -657,16 +659,19 @@ def tf_ssd_bboxes_batch_encode(labels,
                     layer_labels.append(t_labels)
                     layer_localizations.append(t_loc)
                     layer_scores.append(t_scores)
+                    layer_angles.append(t_angles)
 
                 layer_labels = tf.stack(layer_labels)
                 layer_localizations = tf.stack(layer_localizations)
                 layer_scores = tf.stack(layer_scores)
+                layer_angles = tf.stack(layer_angles)
 
                 target_labels.append(layer_labels)
                 target_localizations.append(layer_localizations)
                 target_scores.append(layer_scores)
+                target_angles.append(layer_angles)
 
-        return target_labels, target_localizations, target_scores
+        return target_labels, target_localizations, target_scores, target_angles
 
 # encode gt for one layer
 def tf_ssd_bboxes_encode_layer(labels,
@@ -939,9 +944,9 @@ def ssd_losses(logits, localisations, pre_angles,
             loc_loss = loss
 
         with tf.name_scope('localization_angle'):
-            weights = tf.expand_dims(alpha * fpmask, axis=-1)
+            #weights = tf.expand_dims(alpha * fpmask, axis=-1)
             loss = 1 - tf.cos(pre_angles - gangles)
-            loss = tf.div(tf.reduce_sum(loss * weights), batch_size, name='value')
+            loss = tf.div(tf.reduce_sum(loss * fpmask), batch_size, name='value')
             tf.losses.add_loss(loss)
 
             angle_loss = loss
