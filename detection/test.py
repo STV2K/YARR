@@ -77,7 +77,7 @@ def test(img_name):
         detection_net = STVNet.DetectionNet(params)
 
         anchors = detection_net.anchors() #STVNet.ssd_anchors_all_layers()
-        predictions, localisations, logits, end_points = detection_net.model(inputs) #STVNet.model(inputs)
+        predictions, localisations, logits, pre_angles, end_points = detection_net.model(inputs) #STVNet.model(inputs)
 
         # with tf.device('/device:CPU:0'):
         pre_locals = STVNet.tf_ssd_bboxes_decode(localisations, anchors,
@@ -85,7 +85,7 @@ def test(img_name):
                                                  detection_net.params.img_shape,
                                                  detection_net.params.prior_scaling,
                                                  offset=True, scope='bboxes_decode')
-        pre_scores, pre_bboxes = STVNet.detected_bboxes(predictions, pre_locals,
+        pre_scores, pre_bboxes, p_angles = STVNet.detected_bboxes(predictions, pre_locals, pre_angles,
                                                         select_threshold=config.FLAGS.select_threshold,
                                                         nms_threshold=config.FLAGS.nms_threshold,
                                                         clipping_bbox=None,
@@ -109,14 +109,14 @@ def test(img_name):
             #gt_bboxes = convert_poly_to_bbox(polys, ori_width, ori_height)
             #gt_labels = [1 for i in range(len(gt_bboxes))]
 
-            pre_s, pre_box = sess.run([pre_scores, pre_bboxes],
+            pre_s, pre_box, pre_an = sess.run([pre_scores, pre_bboxes, p_angles],
                                       feed_dict={inputs: [im]})
             
             img = Image.open(PATH + img_name)
             img = np.array(img)
 
             # img = np.copy(im)
-            bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], generate_threshold, (31, 119, 180))
+            bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], pre_an[1][0], generate_threshold, (31, 119, 180))
             # fig = plt.figure(figsize=(12, 12))
             # plt.imshow(img)
             result_img = Image.fromarray(np.uint8(img))
@@ -190,7 +190,7 @@ def txt_generator(filename, scores, bboxes, threshold, width, height):
 
 
         
-def bboxes_draw_on_img(img, scores, bboxes, threshold, color, thickness=5):
+def bboxes_draw_on_img(img, scores, bboxes, angles, threshold, color, thickness=5):
     shape = img.shape
     for i in range(len(bboxes)):
         if(scores[i] > threshold):
@@ -211,7 +211,7 @@ def bboxes_draw_on_img(img, scores, bboxes, threshold, color, thickness=5):
         p2 = (int(bbox[2] * shape[0]), int(bbox[3] * shape[1]))
         cv2.rectangle(img, p1[::-1], p2[::-1], color, thickness)
         # Draw text...
-        s = '%.3f' % scores[i]
+        s = '%.3f-%.3f' % (scores[i], angles[i] / np.pi * 180)
         p1 = (p1[0]-5, p1[1])
         cv2.putText(img, s, p1[::-1], cv2.FONT_HERSHEY_SCRIPT_SIMPLEX, 2, color, 2)
 

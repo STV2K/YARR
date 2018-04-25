@@ -377,29 +377,29 @@ def ssd_anchor_one_layer(img_shape,
     return y, x, h, w
 
 
-def detected_bboxes(predictions, localisations,
+def detected_bboxes(predictions, localisations, angles=None,
                     select_threshold=None, nms_threshold=0.5,
                     clipping_bbox=None, top_k=400, keep_top_k=200):
     """Get the detected bounding boxes from the SSD network output.
     """
     # Select top_k bboxes from predictions, and clip
-    rscores, rbboxes = \
-        tf_ssd_bboxes_select(predictions, localisations,
+    rscores, rbboxes, rangles = \
+        tf_ssd_bboxes_select(predictions, localisations, angles,
                              select_threshold=select_threshold,
                              num_classes=2)
-    rscores, rbboxes = \
-        tfe.bboxes_sort(rscores, rbboxes, top_k=top_k)
+    rscores, rbboxes, rangles = \
+        tfe.bboxes_sort(rscores, rbboxes, rangles, top_k=top_k)
     # Apply NMS algorithm.
-    rscores, rbboxes = \
-        tfe.bboxes_nms_batch(rscores, rbboxes,
+    rscores, rbboxes, rangles = \
+        tfe.bboxes_nms_batch(rscores, rbboxes, rangles,
                              nms_threshold=nms_threshold,
                              keep_top_k=keep_top_k)
     if clipping_bbox is not None:
         rbboxes = tfe.bboxes_clip(clipping_bbox, rbboxes)
-    return rscores, rbboxes
+    return rscores, rbboxes, rangles
 
 
-def tf_ssd_bboxes_select_layer(predictions_layer, localizations_layer,
+def tf_ssd_bboxes_select_layer(predictions_layer, localizations_layer, angle_layer,
                                select_threshold=None,
                                num_classes=21,
                                ignore_class=0,
@@ -418,7 +418,7 @@ def tf_ssd_bboxes_select_layer(predictions_layer, localizations_layer,
     """
     select_threshold = 0.0 if select_threshold is None else select_threshold
     with tf.name_scope(scope, 'ssd_bboxes_select_layer',
-                       [predictions_layer, localizations_layer]):
+                       [predictions_layer, localizations_layer, angle_layer]):
         # Reshape features: Batches x N x N_labels | 4
         p_shape = tfe.get_shape(predictions_layer)
         predictions_layer = tf.reshape(predictions_layer,
@@ -427,8 +427,13 @@ def tf_ssd_bboxes_select_layer(predictions_layer, localizations_layer,
         localizations_layer = tf.reshape(localizations_layer,
                                          tf.stack([l_shape[0], -1, l_shape[-1]]))
 
+        a_shape = tfe.get_shape(angle_layer)
+        angle_layer = tf.reshape(angle_layer,
+                                 tf.stack([a_shape[0], -1, a_shape[-1]]))
+
         d_scores = {}
         d_bboxes = {}
+        d_angles = {}
         for c in range(0, num_classes):
             if c != ignore_class:
                 # Remove boxes under the threshold.
@@ -436,14 +441,16 @@ def tf_ssd_bboxes_select_layer(predictions_layer, localizations_layer,
                 fmask = tf.cast(tf.greater_equal(scores, select_threshold), scores.dtype)
                 scores = scores * fmask
                 bboxes = localizations_layer * tf.expand_dims(fmask, axis=-1)
+                angles = angle_layer[:, :, 0] * fmask
                 # Append to dictionary.
                 d_scores[c] = scores
                 d_bboxes[c] = bboxes
+                d_angles[c] = angles
 
-        return d_scores, d_bboxes
+        return d_scores, d_bboxes, d_angles
 
 
-def tf_ssd_bboxes_select(predictions_net, localizations_net,
+def tf_ssd_bboxes_select(predictions_net, localizations_net, angle_net=None,
                          select_threshold=None,
                          num_classes=21,
                          ignore_class=0,
@@ -464,23 +471,29 @@ def tf_ssd_bboxes_select(predictions_net, localizations_net,
                        [predictions_net, localizations_net]):
         l_scores = []
         l_bboxes = []
+        l_angles = []
         for i in range(len(predictions_net)):
-            scores, bboxes = tf_ssd_bboxes_select_layer(predictions_net[i],
+            scores, bboxes, angles = tf_ssd_bboxes_select_layer(predictions_net[i],
                                                         localizations_net[i],
+                                                        angle_net[i],
                                                         select_threshold,
                                                         num_classes,
                                                         ignore_class)
             l_scores.append(scores)
             l_bboxes.append(bboxes)
+            l_angles.append(angles)
         # Concat results.
         d_scores = {}
         d_bboxes = {}
+        d_angles = {}
         for c in l_scores[0].keys():
             ls = [s[c] for s in l_scores]
             lb = [b[c] for b in l_bboxes]
+            la = [a[c] for a in l_angles]
             d_scores[c] = tf.concat(ls, axis=1)
             d_bboxes[c] = tf.concat(lb, axis=1)
-        return d_scores, d_bboxes
+            d_angles[c] = tf.concat(la, axis=1)
+        return d_scores, d_bboxes, d_angles
 
 
 def tf_ssd_bboxes_decode_layer(feat_localizations,
