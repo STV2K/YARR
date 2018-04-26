@@ -94,7 +94,7 @@ def bboxes_sort(scores, bboxes, angles, top_k=400, scope=None):
             return [bb, an]
         r = tf.map_fn(lambda x: fn_gather(x[0], x[1], x[2]),
                       [bboxes, angles, idxes],
-                      dtype=[bboxes.dtype],
+                      dtype=[bboxes.dtype, angles.dtype],
                       parallel_iterations=10,
                       back_prop=False,
                       swap_memory=False,
@@ -228,10 +228,10 @@ def bboxes_nms_batch(scores, bboxes, angles, nms_threshold=0.5, keep_top_k=200,
 
     # Tensors inputs.
     with tf.name_scope(scope, 'bboxes_nms_batch'):
-        r = tf.map_fn(lambda x: bboxes_nms(x[0], x[1], x[2]
+        r = tf.map_fn(lambda x: bboxes_nms(x[0], x[1], x[2],
                                            nms_threshold, keep_top_k),
                       (scores, bboxes, angles),
-                      dtype=(scores.dtype, bboxes.dtype),
+                      dtype=(scores.dtype, bboxes.dtype, angles.dtype),
                       parallel_iterations=10,
                       back_prop=False,
                       swap_memory=False,

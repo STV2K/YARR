@@ -9,8 +9,8 @@ tf.app.flags.DEFINE_string('gpu_list', '1',
 tf.app.flags.DEFINE_string('ckpt_path', '', 'the checkpoint file to restore')
 tf.app.flags.DEFINE_integer('text_scale', 512, '')
 tf.app.flags.DEFINE_integer('batch_size', 16, '')
-tf.app.flags.DEFINE_integer('input_size_width', 300, '')
-tf.app.flags.DEFINE_integer('input_size_height', 300, '')
+tf.app.flags.DEFINE_integer('input_size_width', 400, '')
+tf.app.flags.DEFINE_integer('input_size_height', 400, '')
 tf.app.flags.DEFINE_float('weight_decay', 0.00004, 'The weight decay on the model weights.')
 tf.app.flags.DEFINE_float('learning_rate', 0.01, '')  # 0.0005
 tf.app.flags.DEFINE_float('select_threshold', 0.01, 'Selection threshold.')

@@ -1,5 +1,6 @@
 import os
 import cv2
+import math
 import numpy as np
 import tensorflow as tf
 import config_utils as config
@@ -13,12 +14,12 @@ import matplotlib.pyplot as plt
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 STV2K_Path = '/media/data1/hcxiao/STV2K/stv2k_test/'
-ICDAR_Path='/media/data1/hcxiao/ICDAR15-IST/ch4_test_images/'
-img_name = 'STV2K_ts_0768.jpg' #'img_243.jpg'
+ICDAR_Path='/media/data1/hcxiao/ICDAR15-IST/test_images/'
+img_name = 'STV2K_ts_0575.jpg' #'img_243.jpg'
 PATH = STV2K_Path
 
 test_all_path = ICDAR_Path
-generate_pic_path = './results/icdar/images/'
+generate_pic_path = './results/icdar/images-400*400/'
 generate_txt_path = './results/icdar/texts/'
 generate_threshold = 0.05
 
@@ -120,7 +121,7 @@ def test(img_name):
             # fig = plt.figure(figsize=(12, 12))
             # plt.imshow(img)
             result_img = Image.fromarray(np.uint8(img))
-            result_img.save('results/result-' + str(config.FLAGS.input_size_width) + '-' + ckpt_path.split('-')[-1] + '-' + img_name)
+            result_img.save('results/result-angle-test-' + str(config.FLAGS.input_size_width) + '-' + ckpt_path.split('-')[-1] + '-' + img_name)
 
 
 def test_all(dir_path):
@@ -129,11 +130,20 @@ def test_all(dir_path):
 
         inputs = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='inputs')
 
-        anchors = STVNet.ssd_anchors_all_layers()
-        predictions, localisations, logits, end_points = STVNet.model(inputs)
+        #anchors = STVNet.ssd_anchors_all_layers()
+        #predictions, localisations, logits, end_points = STVNet.model(inputs)
+        params = STVNet.redefine_params(STVNet.DetectionNet.default_params, config.FLAGS.input_size_width, config.FLAGS.input_size_height)
+        detection_net = STVNet.DetectionNet(params)
 
-        pre_locals = STVNet.tf_ssd_bboxes_decode(localisations, anchors, offset=True, scope='bboxes_decode')
-        pre_scores, pre_bboxes = STVNet.detected_bboxes(predictions, pre_locals,
+        anchors = detection_net.anchors()
+        predictions, localisations, logits, pre_angles, end_points = detection_net.model(inputs)
+
+        pre_locals = STVNet.tf_ssd_bboxes_decode(localisations, anchors,
+                                                 detection_net.params.anchor_steps,
+                                                 detection_net.params.img_shape,
+                                                 detection_net.params.prior_scaling,
+                                                 offset=True, scope='bboxes_decode')
+        pre_scores, pre_bboxes, p_angles = STVNet.detected_bboxes(predictions, pre_locals, pre_angles,
                                                         select_threshold=config.FLAGS.select_threshold,
                                                         nms_threshold=config.FLAGS.nms_threshold,
                                                         clipping_bbox=None,
@@ -158,15 +168,15 @@ def test_all(dir_path):
                         continue
 
                     im, ori_width, ori_height = get_image(dir_path + filename)
-                    pre_s, pre_box = sess.run([pre_scores, pre_bboxes],
+                    pre_s, pre_box, pre_an = sess.run([pre_scores, pre_bboxes, p_angles],
                                               feed_dict={inputs: [im]})
 
                     img = Image.open(dir_path + filename)
                     img = np.array(img)
-                    bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], generate_threshold, (31, 119, 180))
+                    bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], pre_an[1][0], generate_threshold, (31, 119, 180))
                     result_img = Image.fromarray(np.uint8(img))
                     result_img.save(generate_pic_path + filename)
-                    txt_generator(filename, pre_s[1][0], pre_box[1][0], generate_threshold, ori_width, ori_height)
+#                    txt_generator(filename, pre_s[1][0], pre_box[1][0], generate_threshold, ori_width, ori_height)
                     print(filename + ' finished.')
 
 
@@ -197,27 +207,50 @@ def bboxes_draw_on_img(img, scores, bboxes, angles, threshold, color, thickness=
             color = (255, 255, 0)
         else:
             color = (31, 119, 180)
+            continue
         bbox = bboxes[i]
         # Draw bounding box...
-        if bbox[0] < 0:
-            bbox[0] = 0
-        if bbox[1] < 0:
-            bbox[1] = 0
-        if bbox[2] > 1:
-            bbox[2] = 1
-        if bbox[3] > 1:
-            bbox[3] = 1
+#        if bbox[0] < 0:
+#            bbox[0] = 0
+#        if bbox[1] < 0:
+#            bbox[1] = 0
+#        if bbox[2] > 1:
+#            bbox[2] = 1
+#        if bbox[3] > 1:
+#            bbox[3] = 1
+        bbox = np.clip(bbox, 0, 1)
         p1 = (int(bbox[0] * shape[0]), int(bbox[1] * shape[1]))
         p2 = (int(bbox[2] * shape[0]), int(bbox[3] * shape[1]))
-        cv2.rectangle(img, p1[::-1], p2[::-1], color, thickness)
+#        cv2.rectangle(img, p1[::-1], p2[::-1], color, thickness)
+
+        # Draw rbox
+        angle = angles[i] / np.pi * 180
+        #width = bbox[3] - bbox[1]
+        height = p2[0] - p1[0]
+        dx = int(height / 2. * math.cos(angles[i]))
+        dy = int(height / 2. * math.sin(angles[i]))
+        if angle < 0:
+            cor1 = (p1[1] + dx, p2[0] - dy)
+            cor2 = (p1[1] - dx, p2[0] + dy)
+            cor3 = (p2[1] - dx, p1[0] + dy)
+            cor4 = (p2[1] + dx, p1[0] - dy)
+        else:
+            cor1 = (p1[1] + dx, p1[0] - dy)
+            cor2 = (p1[1] - dx, p1[0] + dy)
+            cor3 = (p2[1] - dx, p2[0] + dy)
+            cor4 = (p2[1] + dx, p2[0] - dy)
+        rbox = np.array([cor1, cor2, cor3, cor4])
+        #cv2.polylines(img, [rbox], True, (0, 255, 0), 3)
+        cv2.drawContours(img, [rbox], -1, (255, 255, 0), 5)
+
         # Draw text...
-        s = '%.3f-%.3f' % (scores[i], angles[i] / np.pi * 180)
+        s = '%.3f' % (scores[i]) #, angles[i] / np.pi * 180)
         p1 = (p1[0]-5, p1[1])
-        cv2.putText(img, s, p1[::-1], cv2.FONT_HERSHEY_SCRIPT_SIMPLEX, 2, color, 2)
+#        cv2.putText(img, s, p1[::-1], cv2.FONT_HERSHEY_SCRIPT_SIMPLEX, 2, color, 2)
 
 
 if __name__ == '__main__':
-    test(img_name)
-#    test_all(test_all_path)
+#    test(img_name)
+    test_all(test_all_path)
     
 
