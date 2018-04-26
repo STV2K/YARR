@@ -32,25 +32,6 @@ def get_model_data(model):
         # print(reader.get_tensor(key))
     return var_map, reader
 
-def get_angle(poly):
-    poly = np.array(poly)
-    p_lowest = np.argmax(poly[:, 1])
-    if np.count_nonzero(poly[:, 1] == poly[p_lowest, 1]) == 2:
-        return 0.
-    else:
-        p_lowest_right = (p_lowest - 1) % 4
-        # p_lowest_left = (p_lowest + 1) % 4
-        divide_num = (poly[p_lowest][0] - poly[p_lowest_right][0])
-        if divide_num == 0:
-            angle = 0
-        else:
-            angle = np.arctan(-(poly[p_lowest][1] - poly[p_lowest_right][1]) / divide_num)
-
-        if angle / np.pi * 180 > 45:
-            return -(np.pi / 2 - angle)
-        else:
-            return angle
-
 def turn_into_bbox(x1, x2, x3, x4, y1, y2, y3, y4, num):
     bboxes = []
     angles = []
@@ -62,26 +43,7 @@ def turn_into_bbox(x1, x2, x3, x4, y1, y2, y3, y4, num):
         ymin = min(y) / img_height
         ymax = max(y) / img_height
 
-        # if xmin < 0:
-        #     xmin = 0
-        # if ymin < 0:
-        #     ymin = 0
-        # if xmax > 1:
-        #     xmax = 1
-        # if ymax > 1:
-        #     ymax = 1
-        edge = [
-                (x2[i] - x1[i]) * (y2[i] + y1[i]),
-                (x3[i] - x2[i]) * (y3[i] + y2[i]),
-                (x4[i] - x3[i]) * (y4[i] + y3[i]),
-                (x1[i] - x4[i]) * (y1[i] + y4[i]),
-                ]
-        area =  np.sum(edge) / 2.
-
-        if area > 0:
-            angle = get_angle([[x1[i], y1[i]], [x2[i], y2[i]], [x3[i], y3[i]], [x4[i], y4[i]]])
-        else:
-            angle = get_angle([[x1[i], y1[i]], [x4[i], y4[i]], [x3[i], y3[i]], [x2[i], y2[i]]])
+        angle = data_utils.get_poly_angle([[x1[i], y1[i]], [x2[i], y2[i]], [x3[i], y3[i]], [x4[i], y4[i]]])
 
         bbox = np.clip([ymin, xmin, ymax, xmax], 0.0, 1.0)
         bboxes.append(bbox)
@@ -182,7 +144,7 @@ def train():
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
 
-            summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
+#            summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
             batch_size = config.FLAGS.batch_size
 
             step = 1
@@ -195,12 +157,13 @@ def train():
                 b_labels, b_bboxes, b_angles = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
                 #print(b_labels.shape)
                 #print(b_bboxes.shape)
+                print(b_angles)
                     
                 _, ploss, nloss, lcloss, aloss, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, angle_loss, merged],
                                                                 feed_dict={inputs: b_image, label: b_labels, bboxes: b_bboxes, angles:b_angles})
 
-                summary_writer.add_summary(summary_str, step)
-                summary_writer.flush()
+#                summary_writer.add_summary(summary_str, step)
+#                summary_writer.flush()
 
                 tf.logging.info('%s: Step %d: PositiveLoss = %.2f' % (datetime.now(), step, ploss))#sum_ploss / (batch_size - flag)))
                 tf.logging.info('%s: Step %d: NegtiveLoss = %.2f' % (datetime.now(), step, nloss))#sum_nloss / (batch_size - flag)))
@@ -211,7 +174,7 @@ def train():
                     saver.save(sess, save_dir + 'stvnet.ckpt', global_step=step)
                 step += 1
 
-#                while_flag = False
+                while_flag = False
 
 
             coord.request_stop()

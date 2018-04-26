@@ -89,14 +89,15 @@ class DetectionNet(object):
                            offset=self.params.anchor_offset,
                            dtype=np.float32)
 
-    def model(self, images):
+    def model(self, images, is_training=True):
         return model(images,
                     num_classes=self.params.num_classes,
                     feat_layers=self.params.feat_layers,
                     anchor_sizes=self.params.anchor_sizes,
                     anchor_ratios=self.params.anchor_ratios,
                     normalizations=self.params.normalizations,
-                    kernels=self.params.mbox_kernel)
+                    kernels=self.params.mbox_kernel,
+                    is_training=is_training)
 
 
 

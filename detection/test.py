@@ -78,7 +78,7 @@ def test(img_name):
         detection_net = STVNet.DetectionNet(params)
 
         anchors = detection_net.anchors() #STVNet.ssd_anchors_all_layers()
-        predictions, localisations, logits, pre_angles, end_points = detection_net.model(inputs) #STVNet.model(inputs)
+        predictions, localisations, logits, pre_angles, end_points = detection_net.model(inputs, is_training=False) #STVNet.model(inputs)
 
         # with tf.device('/device:CPU:0'):
         pre_locals = STVNet.tf_ssd_bboxes_decode(localisations, anchors,
@@ -136,7 +136,7 @@ def test_all(dir_path):
         detection_net = STVNet.DetectionNet(params)
 
         anchors = detection_net.anchors()
-        predictions, localisations, logits, pre_angles, end_points = detection_net.model(inputs)
+        predictions, localisations, logits, pre_angles, end_points = detection_net.model(inputs, is_training=False)
 
         pre_locals = STVNet.tf_ssd_bboxes_decode(localisations, anchors,
                                                  detection_net.params.anchor_steps,
