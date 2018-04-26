@@ -24,5 +24,3 @@ def conv3x3(in_planes, out_planes, stride=1):
 
 def bilinear_upsampling_2x():
     return nn.Upsample(scale_factor=2, mode='bilinear')
-
-

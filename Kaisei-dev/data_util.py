@@ -46,6 +46,35 @@ def image_normalize(images, means=(112.80 / 255, 106.65 / 255, 101.02 / 255)):
     return torch.Tensor.sub(images, torch.Tensor(means).view(1, 3, 1, 1))
 
 
+# Tensor/Variable Transformation
+def crop_tensor(tensor, w_min, w_max, h_min, h_max):
+    """
+    Crop tensor/variable with index_select.
+    PyTorch Convention: nBatch * nChannel * nHeight * nWidth
+    """
+    # Crop the width-dim
+    crop = torch.index_select(tensor, 3, torch.LongTensor(list(range(w_min, w_max + 1))))
+    crop = torch.index_select(crop, 2, torch.LongTensor(list(range(h_min, h_max + 1))))
+    return crop
+
+
+def generate_flow_grid(theta, size):
+    """
+    TODO: Generate flow grid according to the affine matrix for RoIAffine.
+    Size convention: nBatch (1) * outHeight * outWeight * 2 (x, y).
+    F.affine_grid()
+    """
+    pass
+
+
+def apply_affine_grid(flow_grid, input_tensor):
+    """
+    TODO: Apply the affine and check.
+    F.grid_sample()
+    """
+    pass
+
+
 # PIL Transformation
 def resize_image(image, max_side_len):
     """
@@ -600,6 +629,14 @@ def load_data(file_path=config.demo_data_path):
     return ret
 
 
+def generate_affine_matrix(angle, t_x, t_y):
+    """
+    TODO: Generate affine matrix for RoIAffine.
+    Return a 2*3 matrix.
+    """
+    pass
+
+
 # Visualizing
 def show_gray_colormap(array):
     plt.imshow(array, cmap="gray")
@@ -710,6 +747,7 @@ class STV2KDetDataset(Dataset):
         # NB: Passing 1/4 ratio to generate score and geo maps may evoke mysterious computational geometry problems.
         # ratio_1_4 = (resize_ratio[0] / 4, resize_ratio[1] / 4)
         # size_1_4 = (img.size[0] // 4, img.size[1] // 4)
+        # TODO: do augmentation by random cropping
         label_quad, label_content, label_bool = load_annotation(label_path)
         valid_quad, valid_cont, valid_bool = check_and_validate_polys(label_quad, label_content, label_bool, img_ori_size)
         # Use float quads to generate maps
