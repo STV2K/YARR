@@ -11,15 +11,15 @@ from nets import STVNet
 from PIL import Image
 import matplotlib.pyplot as plt
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
-STV2K_Path = '/media/data1/hcxiao/STV2K/stv2k_test/'
-ICDAR_Path='/media/data1/hcxiao/ICDAR15-IST/test_images/'
-img_name = 'STV2K_ts_0575.jpg' #'img_243.jpg'
+STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_test/'
+ICDAR_Path='/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_test_images/'
+img_name = 'STV2K_ts_0041.jpg' #'img_243.jpg'
 PATH = STV2K_Path
 
-test_all_path = ICDAR_Path
-generate_pic_path = './results/icdar/images-400*400/'
+test_all_path = STV2K_Path
+generate_pic_path = './results/stv2k/angles/'
 generate_txt_path = './results/icdar/texts/'
 generate_threshold = 0.05
 
@@ -121,7 +121,7 @@ def test(img_name):
             # fig = plt.figure(figsize=(12, 12))
             # plt.imshow(img)
             result_img = Image.fromarray(np.uint8(img))
-            result_img.save('results/result-angle-test-' + str(config.FLAGS.input_size_width) + '-' + ckpt_path.split('-')[-1] + '-' + img_name)
+            result_img.save('results/result-angle-v2-' + str(config.FLAGS.input_size_width) + '-' + ckpt_path.split('-')[-1] + '-' + img_name)
 
 
 def test_all(dir_path):
@@ -218,39 +218,70 @@ def bboxes_draw_on_img(img, scores, bboxes, angles, threshold, color, thickness=
 #            bbox[2] = 1
 #        if bbox[3] > 1:
 #            bbox[3] = 1
-        bbox = np.clip(bbox, 0, 1)
+        bbox = np.clip(bbox, 0.0, 1.0)
         p1 = (int(bbox[0] * shape[0]), int(bbox[1] * shape[1]))
         p2 = (int(bbox[2] * shape[0]), int(bbox[3] * shape[1]))
 #        cv2.rectangle(img, p1[::-1], p2[::-1], color, thickness)
 
         # Draw rbox
+        theta = angles[i]
         angle = angles[i] / np.pi * 180
-        #width = bbox[3] - bbox[1]
+        if angle < 0 and angle > -3:
+            theta = 0
+        width = p2[1] - p1[1]
         height = p2[0] - p1[0]
-        dx = int(height / 2. * math.cos(angles[i]))
-        dy = int(height / 2. * math.sin(angles[i]))
-        if angle < 0:
-            cor1 = (p1[1] + dx, p2[0] - dy)
-            cor2 = (p1[1] - dx, p2[0] + dy)
-            cor3 = (p2[1] - dx, p1[0] + dy)
-            cor4 = (p2[1] + dx, p1[0] - dy)
+
+        x0 = (p2[1] + p1[1]) / 2.
+        y0 = (p2[0] + p1[0]) / 2.
+        dail = math.sqrt(width * width + height * height) / 2.
+        if theta < 0:
+            if width < height:
+                alpha = math.atan(width / height)
+            if height < width:
+                alpha = math.atan(height / width)
+            dx1 = dail * math.sin(math.pi / 2. + theta - alpha)
+            dy1 = dail * math.cos(math.pi / 2. + theta - alpha)
+            dx2 = dail * math.cos(0 - theta - alpha)
+            dy2 = dail * math.sin(0 - theta - alpha)
+            cor0 = (x0 - dx2, y0 - dy2)
+            cor1 = (x0 - dx1, y0 - dy1)
+            cor2 = (x0 + dx2, y0 + dy2)
+            cor3 = (x0 + dx1, y0 + dy1)
         else:
-            cor1 = (p1[1] + dx, p1[0] - dy)
-            cor2 = (p1[1] - dx, p1[0] + dy)
-            cor3 = (p2[1] - dx, p2[0] + dy)
-            cor4 = (p2[1] + dx, p2[0] - dy)
-        rbox = np.array([cor1, cor2, cor3, cor4])
+            alpha = math.atan(height / width)
+            dx1 = dail * math.sin(math.pi / 2. - theta - alpha)
+            dy1 = dail * math.cos(math.pi / 2. - theta - alpha)
+            dx2 = dail * math.cos(theta - alpha)
+            dy2 = dail * math.sin(theta - alpha)
+            cor0 = (x0 - dx2, y0 + dy2)
+            cor1 = (x0 + dx1, y0 - dy1)
+            cor2 = (x0 + dx2, y0 - dy2)
+            cor3 = (x0 - dx1, y0 + dy1)
+#        dx = int(height / 2. * math.cos(angles[i]))
+#        dy = int(height / 2. * math.sin(angles[i]))
+#        if angle < 0:
+#            cor1 = (p1[1] + dx, p2[0] - dy)
+#            cor2 = (p1[1] - dx, p2[0] + dy)
+#            cor3 = (p2[1] - dx, p1[0] + dy)
+#            cor4 = (p2[1] + dx, p1[0] - dy)
+#        else:
+#            cor1 = (p1[1] + dx, p1[0] - dy)
+#            cor2 = (p1[1] - dx, p1[0] + dy)
+#            cor3 = (p2[1] - dx, p2[0] + dy)
+#            cor4 = (p2[1] + dx, p2[0] - dy)
+        rbox = np.array([cor0, cor1, cor2, cor3])
+        rbox = rbox.astype(np.int32)
         #cv2.polylines(img, [rbox], True, (0, 255, 0), 3)
         cv2.drawContours(img, [rbox], -1, (255, 255, 0), 5)
 
         # Draw text...
-        s = '%.3f' % (scores[i]) #, angles[i] / np.pi * 180)
+        s = '%.3f / %.2f' % (scores[i], angle)
         p1 = (p1[0]-5, p1[1])
 #        cv2.putText(img, s, p1[::-1], cv2.FONT_HERSHEY_SCRIPT_SIMPLEX, 2, color, 2)
 
 
 if __name__ == '__main__':
-#    test(img_name)
-    test_all(test_all_path)
+    test(img_name)
+#    test_all(test_all_path)
     
 

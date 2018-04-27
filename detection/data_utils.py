@@ -76,13 +76,11 @@ def get_parallelogram(poly):
         backward_edge = fit_line([p0[0], p3[0]], [p0[1], p3[1]])
         forward_edge = fit_line([p1[0], p2[0]], [p1[1], p2[1]])
         if point_dist_to_line(p0, p1, p2) > point_dist_to_line(p0, p1, p3):
-            # 平行线经过p2
             if edge[1] == 0:
                 edge_opposite = [1, 0, -p2[0]]
             else:
                 edge_opposite = [edge[0], -1, p2[1] - edge[0] * p2[0]]
         else:
-            # 经过p3
             if edge[1] == 0:
                 edge_opposite = [1, 0, -p3[0]]
             else:
@@ -191,7 +189,7 @@ def sort_poly(poly):
             ]
     area =  np.sum(edge) / 2.
 
-    if area > 0:
+    if area < 0:
         poly = poly
     else:
         poly = poly[(0, 3, 2, 1), :]
@@ -219,7 +217,7 @@ def get_angle(poly):
 
 def get_poly_angle(poly):
     poly = np.array(poly)
-    poly = get_parallelogram(poly)
+    #poly = get_parallelogram(poly)
     poly = sort_poly(poly)
     poly = rectangle_from_parallelogram(poly)
     angle = get_angle(poly)
@@ -549,24 +547,24 @@ def run(output_dir, shuffling=False, name='icdar'):
 # IMAGE_WIDTH = 300
 
 # filenames = '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord'
-stv2k_filenames = ['/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0000.tfrecord',
-                   '/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0001.tfrecord',
-                   '/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0002.tfrecord',
-                   '/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0003.tfrecord',
-                   '/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0004.tfrecord',
-                   '/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0005.tfrecord',
-                   '/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0006.tfrecord']
-icdar_filenames = ['/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0000.tfrecord',
-                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0001.tfrecord',
-                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0002.tfrecord',
-                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0003.tfrecord',
-                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0004.tfrecord',
-                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0005.tfrecord',
-                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0006.tfrecord',
-                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0007.tfrecord',
-                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0008.tfrecord',
-                   '/media/data1/hcxiao/TFRecorders/ICDAR15TF/icdar_0009.tfrecord']
-train_filenames = stv2k_filenames
+stv2k_filenames = ['/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF/STV2K_0001.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF/STV2K_0002.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF/STV2K_0003.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF/STV2K_0004.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF/STV2K_0005.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF/STV2K_0006.tfrecord']
+icdar_filenames = ['/media/data2/hcx_data/ICDARTF/icdar_0000.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0001.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0002.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0003.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0004.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0005.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0006.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0007.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0008.tfrecord',
+                   '/media/data2/hcx_data/ICDARTF/icdar_0009.tfrecord']
+train_filenames = stv2k_filenames + icdar_filenames
 val_filenames = ['/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0003.tfrecord']
 
 
