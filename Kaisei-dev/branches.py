@@ -127,10 +127,6 @@ class Kaisei(nn.Module):
         self.resnet = models.resnet50_block()
         self.deconv = models.deconv_block()
         self.detect = DetectionBranch()
-        # if config.on_cuda:
-            # self.resnet.cuda()
-            # self.deconv.cuda()
-            # self.detect.cuda()
 
     def forward(self, x):
         """

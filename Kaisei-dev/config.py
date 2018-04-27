@@ -11,7 +11,7 @@ training_data_path_pami2 = "/media/data1/hcxiao/STV2K/stv2k_train"
 test_data_path_pami2 = "/media/data1/hcxiao/STV2K/stv2k_test"
 training_data_path_z440 = "/home/xhuang/Research/Datasets/STV2K_New/stv2k_train"
 test_data_path_z440 = "/home/xhuang/Research/Datasets/STV2K_New/stv2k_test"
-alphabet_filename = "stv2k_alphabet_2784_no-blank.txt"
+alphabet_filename = "stv2k_alphabet_2784_no-blank.txt"  # TODO: Remove upper English letters
 
 expr_name = "Kaisei-det"
 log_file_name = expr_name + "_fixlr-5e-5_run1"
@@ -38,6 +38,9 @@ text_scale = 1024  # Decides the receptive field of detection branch
 score_map_threshold = 0.8
 box_threshold = 0.1
 nms_threshold = 0.2
+
+# Recognition Branch Settings
+input_height = 8
 
 # GPU Training Settings
 data_loader_worker_num = 4  # Setting to 0 will load data in the main process

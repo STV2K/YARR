@@ -4,12 +4,13 @@
 
 import os
 import sys
+
 import cv2
-# import six
 from tqdm import tqdm
 import random
-import torch
 import numpy as np
+import torch
+import torch.nn.functional as F
 import torchvision.transforms as transforms
 from PIL import Image
 from torch.autograd import Variable
@@ -33,7 +34,7 @@ import config
 def image_normalize(images, means=(112.80 / 255, 106.65 / 255, 101.02 / 255)):
     """
     Image normalization used in EAST.
-    TODO: calc the stds accord to our dataset(DONE) and use torchvision's transformation.
+    TODO_SKIP: calc the stds accord to our dataset(DONE) and use torchvision's transformation.
     TODO_DONE: determine the means accord to our dataset.
     EAST means: [123.68, 116.78, 103.94] -- ICDAR?
     STV2K Train means: [112.7965, 106.6500, 101.0181]
@@ -60,19 +61,22 @@ def crop_tensor(tensor, w_min, w_max, h_min, h_max):
 
 def generate_flow_grid(theta, size):
     """
-    TODO: Generate flow grid according to the affine matrix for RoIAffine.
-    Size convention: nBatch (1) * outHeight * outWeight * 2 (x, y).
-    F.affine_grid()
+    Generate flow grid according to the affine matrix for RoIAffine.
+    Size convention: nBatch (1) * outHeight * outWeight * 2 (x, y), a torch.Size.
     """
-    pass
+    # assert len(size) == 4 and size[3] == 2 and size[1] == config.input_height
+    #  and size[2] % config.input_height == 0
+    # TODO: pad to longest width later; func to calc *size*
+    # assert len(theta) == size[0]
+    return F.affine_grid(theta, size)
 
 
 def apply_affine_grid(flow_grid, input_tensor):
     """
-    TODO: Apply the affine and check.
+    Apply the affine grid.
     F.grid_sample()
     """
-    pass
+    return F.grid_sample(input_tensor, flow_grid)
 
 
 # PIL Transformation
@@ -629,12 +633,21 @@ def load_data(file_path=config.demo_data_path):
     return ret
 
 
-def generate_affine_matrix(angle, t_x, t_y):
+def generate_affine_matrix(radian):  # , t_x, t_y): Seems we won't need t_x and t_y now.
     """
-    TODO: Generate affine matrix for RoIAffine.
-    Return a 2*3 matrix.
+    Generate affine matrix for RoIAffine.
+    Angle notation: Degree measure.
+    TODO: It seems FOTS's RoIRotate is finer than ours, since it also deals with quad-to-rect problem.
+          Refer to the paper for detail.
+    Return a 1*2*3 tensor.
     """
-    pass
+    affine_m = np.zeros((2, 3))
+    radian = np.radians(radian)
+    affine_m[0][0] = np.math.cos(radian)
+    affine_m[0][1] = -np.math.sin(radian)
+    affine_m[1][0] = np.math.sin(radian)
+    affine_m[1][1] = np.math.cos(radian)
+    return torch.FloatTensor(affine_m[np.newaxis, ...])
 
 
 # Visualizing
@@ -706,7 +719,7 @@ def calc_image_channel_std(img_list, img_means):
 
 
 # PyTorch Data Warp-up
-# TODO-COMPROMISED: fix issue that default collate_fn cannot deal with various sized tensor, which requires turning
+# TODO_COMPROMISED: fix issue that default collate_fn cannot deal with various sized tensor, which requires turning
 #  into lists or to sample pictures for mini-batches in an aspect-ratio-respecting way
 # COMPROMISE: we chose to resize all stv2k images to (1120, 1120) during training.
 def collate_fn(batch):
@@ -755,7 +768,8 @@ class STV2KDetDataset(Dataset):
         if len(valid_quad_resized):
             valid_quad_resized[:, :, 0] *= resize_ratio[0]
             valid_quad_resized[:, :, 1] *= resize_ratio[1]
-        score_map, geo_map, training_mask = generate_rbox(img.size, valid_quad_resized, valid_bool, valid_cont, img_path)
+        score_map, geo_map, training_mask = generate_rbox(img.size, valid_quad_resized,
+                                                          valid_bool, valid_cont, img_path)
         # return img, valid_quad, valid_cont, score_map, geo_map, training_mask
         # Downsample the groundtruth to match the output size
         # print("Finishing img:", img_path)
