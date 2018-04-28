@@ -125,7 +125,7 @@ class Kaisei(nn.Module):
     def __init__(self):
         super().__init__()
         self.resnet = models.resnet50_block()
-        self.deconv = models.deconv_block()
+        self.deconv = models.deconv_block()  # TODO: consider add dropouts here if nn are struggling to converge
         self.detect = DetectionBranch()
 
     def forward(self, x):
