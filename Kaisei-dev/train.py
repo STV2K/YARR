@@ -38,10 +38,10 @@ cudnn.benchmark = config.on_cuda
 cudnn.enabled = config.on_cuda
 
 train_loader = data_util.DataProvider(batch_size=config.batch_size,
-                                      data_path=config.training_data_path_pami2,
+                                      data_path=config.training_data_path_pami,
                                       is_cuda=config.on_cuda)
 test_loader = data_util.DataProvider(batch_size=config.test_batch_size,
-                                     data_path=config.test_data_path_pami2,
+                                     data_path=config.test_data_path_pami,
                                      is_cuda=config.on_cuda)
 
 
@@ -190,11 +190,11 @@ def detection_train():
         while epoch_now == train_loader.epoch:
             for p in kaisei.parameters():
                 p.requires_grad = True
+            epoch_now = train_loader.epoch
             kaisei.train()
             cost = train_batch(kaisei, criterion, optimizer)
             loss_avg.add(cost)
             i += 1
-            epoch_now = train_loader.epoch
 
             if i % config.notify_interval == 0:
                 logger.tee('[%d/%d][It-%d] Loss: %f' %
