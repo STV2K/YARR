@@ -24,11 +24,12 @@ if config.on_cuda:
     cudnn.benchmark = config.on_cuda
     cudnn.enabled = config.on_cuda
     kaisei_det.cuda()
+kaisei_det.eval()
 
 
 def detect(score_map, geo_map, timer, score_map_thresh=config.score_map_threshold,
            box_thresh=config.box_threshold, nms_thresh=config.nms_threshold):
-    '''
+    """
     restore text boxes from score map and geo map
     :param score_map:
     :param geo_map:
@@ -37,11 +38,12 @@ def detect(score_map, geo_map, timer, score_map_thresh=config.score_map_threshol
     :param box_thresh: threshold for boxes
     :param nms_thresh: threshold for nms
     :return:
-    '''
-    print(score_map, geo_map.shape)
+    """
+    # print(score_map, geo_map.shape)
     if len(score_map.shape) == 4:
         score_map = score_map[0, :, :, 0]
         geo_map = geo_map[0, :, :, ]
+    # TODO: fatal problems here, score seems to be NOT CONVERGED
     print(score_map, geo_map.shape)  # filter the score map
     xy_text = np.argwhere(score_map > score_map_thresh)
     # sort the text boxes via the y axis
