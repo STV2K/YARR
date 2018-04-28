@@ -9,7 +9,9 @@ import cv2
 import torch
 import numpy as np
 import torchvision.transforms as transforms
+from torch.autograd import Variable
 from PIL import Image
+
 
 import lanms
 import config
@@ -73,10 +75,12 @@ def detect_image(net_path, img_path):
         img = Image.open(im_fn)
         start_time = time.time()
         img_resized, (ratio_w, ratio_h) = du.resize_image_fixed_square(img)
-        img_tensor = transforms.ToTensor()(img_resized)
+        img_tensor = transforms.ToTensor()(img_resized).unsqueeze_(0)
         timer = {'net': 0, 'restore': 0, 'nms': 0}
         start = time.time()
-        score, geo = kaisei_det.forward(img_tensor)
+        score, geo = kaisei_det.forward(Variable(img_tensor))
+        score = score.data
+        geo = geo.data
         timer['net'] = time.time() - start
         boxes, timer = detect(score, geo, timer)
         print('{} : net {:.0f}ms, restore {:.0f}ms, nms {:.0f}ms'.format(
