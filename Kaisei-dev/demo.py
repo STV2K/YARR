@@ -114,4 +114,6 @@ def load_net(net_path, model):
 
 
 if __name__ == "__main__":
-    detect_image(config.ckpt_path, config.demo_data_path)
+    img_list = du.get_image_list(config.demo_data_path)
+    print(img_list)
+    detect_image(config.ckpt_path,img_list)
