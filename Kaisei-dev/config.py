@@ -14,7 +14,7 @@ test_data_path_z440 = "/home/xhuang/Research/Datasets/STV2K_New/stv2k_test"
 alphabet_filename = "stv2k_alphabet_2784_no-blank.txt"  # TODO: Remove upper English letters
 
 expr_name = "Kaisei-det"
-log_file_name = expr_name + "_fixlr-5e-5_run1"
+log_file_name = expr_name + "_fixlr-5e-5_run1.2.cont"
 
 # Constants
 STV2K_image_width = 2448
@@ -38,13 +38,14 @@ text_scale = 1024  # Decides the receptive field of detection branch
 score_map_threshold = 0.8
 box_threshold = 0.1
 nms_threshold = 0.2
+detect_output_dir = "results_det/"
 
 # Recognition Branch Settings
 input_height = 8
 
 # GPU Training Settings
 data_loader_worker_num = 4  # Setting to 0 will load data in the main process
-gpu_list = [0]
+gpu_list = [1]
 batch_size = 8  # set to 16 during training
 test_batch_size = 8
 test_iter_num = 5
@@ -53,9 +54,9 @@ epoch_num = 30
 val_interval = 500
 notify_interval = 30
 ckpt_interval = 500
-ckpt_path = "./save_points"
+ckpt_path = "./save_points/netKAISEI_0_7500.pth"
 on_cuda = True
-continue_train = False
+continue_train = True
 ckpt_filename = ""
 
 # Optimizer and Learning Policy
