@@ -120,12 +120,13 @@ class RecognitionBranch(nn.Module):
 class Kaisei(nn.Module):
     """
     The complete KAISEI net.
+    TODO: Crop and augmentation; consider dropout since Kaisei seems to be over-fitting.
     """
 
     def __init__(self):
         super().__init__()
         self.resnet = models.resnet50_block()
-        self.deconv = models.deconv_block()  # TODO: consider add dropouts here if nn are struggling to converge
+        self.deconv = models.deconv_block()
         self.detect = DetectionBranch()
 
     def forward(self, x):
@@ -141,3 +142,10 @@ class Kaisei(nn.Module):
         self.resnet.residual_layers = []
 
         return score_map, geometry_map
+
+
+class Hokuto(nn.Module):
+    """
+    TODO: The end-to-end framework
+    """
+    pass
