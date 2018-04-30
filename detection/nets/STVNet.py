@@ -184,11 +184,11 @@ def model(images,
             # Block 4: let's dilate the hell out of it!
             net = slim.conv2d(net, 1024, [3, 3], rate=6, scope='conv6')
             end_points['block6'] = net
-            net = tf.layers.dropout(net, rate=dropout_keep_prob, training=is_training)
+#            net = tf.layers.dropout(net, rate=dropout_keep_prob, training=is_training)
             # Block 5: 1x1 conv. Because the fuck.
             net = slim.conv2d(net, 1024, [1, 1], scope='conv7')
             end_points['block7'] = net
-            net = tf.layers.dropout(net, rate=dropout_keep_prob, training=is_training)
+#            net = tf.layers.dropout(net, rate=dropout_keep_prob, training=is_training)
 
             # Block 6/7/8/9: 1x1 and 3x3 convolutions stride 2 (except lasts).
             end_point = 'block8'

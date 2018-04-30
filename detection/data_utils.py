@@ -564,7 +564,7 @@ icdar_filenames = ['/media/data2/hcx_data/ICDARTF/icdar_0000.tfrecord',
                    '/media/data2/hcx_data/ICDARTF/icdar_0007.tfrecord',
                    '/media/data2/hcx_data/ICDARTF/icdar_0008.tfrecord',
                    '/media/data2/hcx_data/ICDARTF/icdar_0009.tfrecord']
-train_filenames = stv2k_filenames + icdar_filenames
+train_filenames = icdar_filenames
 val_filenames = ['/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0003.tfrecord']
 
 

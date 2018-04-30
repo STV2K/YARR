@@ -11,15 +11,15 @@ from nets import STVNet
 from PIL import Image
 import matplotlib.pyplot as plt
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_test/'
 ICDAR_Path='/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_test_images/'
-img_name = 'STV2K_ts_0041.jpg' #'img_243.jpg'
-PATH = STV2K_Path
+img_name = 'img_82.jpg' #'STV2K_ts_0041.jpg' #'img_243.jpg'
+PATH = ICDAR_Path
 
-test_all_path = STV2K_Path
-generate_pic_path = './results/stv2k/angles/'
+test_all_path = ICDAR_Path
+generate_pic_path = './results/icdar/angles/'
 generate_txt_path = './results/icdar/texts/'
 generate_threshold = 0.05
 
@@ -121,7 +121,7 @@ def test(img_name):
             # fig = plt.figure(figsize=(12, 12))
             # plt.imshow(img)
             result_img = Image.fromarray(np.uint8(img))
-            result_img.save('results/result-angle-v2-' + str(config.FLAGS.input_size_width) + '-' + ckpt_path.split('-')[-1] + '-' + img_name)
+            result_img.save('results/result-angle-v3-' + str(config.FLAGS.input_size_width) + '-' + ckpt_path.split('-')[-1] + '-' + img_name)
 
 
 def test_all(dir_path):
@@ -173,27 +173,31 @@ def test_all(dir_path):
 
                     img = Image.open(dir_path + filename)
                     img = np.array(img)
-                    bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], pre_an[1][0], generate_threshold, (31, 119, 180))
+                    r_boxes = bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], pre_an[1][0], generate_threshold, (31, 119, 180))
                     result_img = Image.fromarray(np.uint8(img))
                     result_img.save(generate_pic_path + filename)
 #                    txt_generator(filename, pre_s[1][0], pre_box[1][0], generate_threshold, ori_width, ori_height)
+#                    txt_generator(filename, r_boxes)
                     print(filename + ' finished.')
 
 
-def txt_generator(filename, scores, bboxes, threshold, width, height):
+#def txt_generator(filename, scores, bboxes, threshold, width, height):
+def txt_generator(filename, r_boxes):
     txt_save_path = os.path.join(generate_txt_path, 'res_' + filename.split('.')[0]+'.txt')
     txt_file = open(txt_save_path, 'wt')
 
-    for i in range(len(bboxes)):
-        bbox = bboxes[i]
-        score = scores[i]
-        if score < threshold:
-            continue
-        ymin = str(int(bbox[0]*height))
-        xmin = str(int(bbox[1]*width))
-        ymax = str(int(bbox[2]*height))
-        xmax = str(int(bbox[3]*width))
-        result_str = xmin+','+ymin+','+xmax+','+ymin+','+xmax+','+ymax+','+xmin+','+ymax+'\r\n'
+    for i in range(len(r_boxes)):
+#        bbox = bboxes[i]
+#        score = scores[i]
+#        if score < threshold:
+#            continue
+#        ymin = str(int(bbox[0]*height))
+#        xmin = str(int(bbox[1]*width))
+#        ymax = str(int(bbox[2]*height))
+#        xmax = str(int(bbox[3]*width))
+#        result_str = xmin+','+ymin+','+xmax+','+ymin+','+xmax+','+ymax+','+xmin+','+ymax+'\r\n'
+        (x1, y1), (x2, y2), (x3, y3), (x4, y4) = r_boxes[i]
+        result_str = str(x1)+','+str(y1)+','+str(x2)+','+str(y2)+','+str(x3)+','+str(y3)+','+str(x4)+','+str(y4)+'\r\n'
         txt_file.write(result_str)
 
     txt_file.close()
@@ -202,6 +206,7 @@ def txt_generator(filename, scores, bboxes, threshold, width, height):
         
 def bboxes_draw_on_img(img, scores, bboxes, angles, threshold, color, thickness=5):
     shape = img.shape
+    r_boxes = []
     for i in range(len(bboxes)):
         if(scores[i] > threshold):
             color = (255, 255, 0)
@@ -210,14 +215,6 @@ def bboxes_draw_on_img(img, scores, bboxes, angles, threshold, color, thickness=
             continue
         bbox = bboxes[i]
         # Draw bounding box...
-#        if bbox[0] < 0:
-#            bbox[0] = 0
-#        if bbox[1] < 0:
-#            bbox[1] = 0
-#        if bbox[2] > 1:
-#            bbox[2] = 1
-#        if bbox[3] > 1:
-#            bbox[3] = 1
         bbox = np.clip(bbox, 0.0, 1.0)
         p1 = (int(bbox[0] * shape[0]), int(bbox[1] * shape[1]))
         p2 = (int(bbox[2] * shape[0]), int(bbox[3] * shape[1]))
@@ -237,7 +234,7 @@ def bboxes_draw_on_img(img, scores, bboxes, angles, threshold, color, thickness=
         if theta < 0:
             if width < height:
                 alpha = math.atan(width / height)
-            if height < width:
+            else:
                 alpha = math.atan(height / width)
             dx1 = dail * math.sin(math.pi / 2. + theta - alpha)
             dy1 = dail * math.cos(math.pi / 2. + theta - alpha)
@@ -257,31 +254,21 @@ def bboxes_draw_on_img(img, scores, bboxes, angles, threshold, color, thickness=
             cor1 = (x0 + dx1, y0 - dy1)
             cor2 = (x0 + dx2, y0 - dy2)
             cor3 = (x0 - dx1, y0 + dy1)
-#        dx = int(height / 2. * math.cos(angles[i]))
-#        dy = int(height / 2. * math.sin(angles[i]))
-#        if angle < 0:
-#            cor1 = (p1[1] + dx, p2[0] - dy)
-#            cor2 = (p1[1] - dx, p2[0] + dy)
-#            cor3 = (p2[1] - dx, p1[0] + dy)
-#            cor4 = (p2[1] + dx, p1[0] - dy)
-#        else:
-#            cor1 = (p1[1] + dx, p1[0] - dy)
-#            cor2 = (p1[1] - dx, p1[0] + dy)
-#            cor3 = (p2[1] - dx, p2[0] + dy)
-#            cor4 = (p2[1] + dx, p2[0] - dy)
         rbox = np.array([cor0, cor1, cor2, cor3])
         rbox = rbox.astype(np.int32)
         #cv2.polylines(img, [rbox], True, (0, 255, 0), 3)
-        cv2.drawContours(img, [rbox], -1, (255, 255, 0), 5)
+        cv2.drawContours(img, [rbox], -1, (255, 255, 0), 3)
+        r_boxes.append(rbox)
 
         # Draw text...
         s = '%.3f / %.2f' % (scores[i], angle)
         p1 = (p1[0]-5, p1[1])
 #        cv2.putText(img, s, p1[::-1], cv2.FONT_HERSHEY_SCRIPT_SIMPLEX, 2, color, 2)
+    return r_boxes
 
 
 if __name__ == '__main__':
-    test(img_name)
-#    test_all(test_all_path)
+#    test(img_name)
+    test_all(test_all_path)
     
 

@@ -13,7 +13,8 @@ slim = tf.contrib.slim
 os.environ["CUDA_VISIBLE_DEVICES"] = "3" # config.FLAGS.gpu_list
 log_dir='/home/hcxiao/STVLogs/tensorLog/'
 model_dir='/home/hcxiao/Codes/YARR/detection/models/'
-save_dir='/home/hcxiao/Codes/YARR/detection/models/angles/2/'
+#save_dir='/home/hcxiao/Codes/YARR/detection/models/angles/3/'
+save_dir = '/media/data2/hcx_data/det_models/angles/4/'
 model_name='VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt' # .data-00000-of-00001'
 
 img_width = config.FLAGS.input_size_width
