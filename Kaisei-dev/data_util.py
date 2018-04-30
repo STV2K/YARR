@@ -13,6 +13,8 @@ import torch
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 from PIL import Image
+from PIL import ImageDraw2
+from shapely.geometry import Polygon
 from torch.autograd import Variable
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
@@ -126,6 +128,83 @@ def resize_image_fixed_square(image, fixed_len=config.fixed_len):
 
     return im, (ratio_w, ratio_h)
 
+
+def random_crop(img, quads, contents, prob_bg=0.30, prob_partial=0.64, top_left_point_ratio=0.75, min_crop_ratio=0.2):
+    """
+    Randomly cropping.
+    :param img: An PIL Image obj.
+    :param quads: Annotation of quadrilaterals with size and direction validated,
+                  formatted as [[(x1, y1), ...], ...](np.array).
+    :param contents: Annotation of text contents.
+    :param prob_bg: Probability to crop a background area, otherwise crop partial or don't crop.
+    :param prob_partial: Probability to crop a partial out, otherwise don't crop.
+    :param top_left_point_ratio: Which area top-left point of crop area will be generated into.
+    :param min_crop_ratio: Minimal size ratio allowed for the cropped image.
+    :return: Cropped img, quads and contents.
+    """
+    assert top_left_point_ratio + min_crop_ratio < 1
+    rand = np.random.random()
+    if rand < prob_bg + prob_partial:
+        imw, imh = img.size
+        minw = int(imw * min_crop_ratio)
+        minh = int(imh * min_crop_ratio)
+        x = int(np.random.random() * top_left_point_ratio * imw)
+        y = int(np.random.random() * top_left_point_ratio * imh)
+        w = np.random.randint(minw, imw - x)
+        h = np.random.randint(minh, imh - y)
+        boarder_left = boarder_top = 0
+        boarder_right = imw
+        boarder_bottom = imh
+        if rand < prob_bg:
+            # Generate negative samples
+            # TODO: crop_bg
+            crop_area = rect2Polygon([(x, y), (x, y + h), (x + w, y + h), (x + w, y)])
+            for quad, content in zip(quads, contents):
+                quad_area = Polygon(quad)
+                if quad_area.within(crop_area) or quad_area.crosses(crop_area):
+                    pass
+                    # fill poly
+            return img, [], []
+        elif rand < prob_bg + prob_partial:
+            # TODO: crop partial
+            crop_update = True
+            extend_update = True
+            out_quad = []
+            out_cont = []
+            for quad, content in zip(quads, contents):
+                if crop_update:
+                    crop_area = rect2Polygon([(x, y), (x, y + h), (x + w, y + h), (x + w, y)])
+                    crop_update = False
+                if extend_update:
+                    extend_area = rect2Polygon([(boarder_top, boarder_left), (boarder_top, boarder_right),
+                                                (boarder_bottom, boarder_right), (boarder_bottom, boarder_left)])
+                    extend_update = False
+                # assert crop_area.within(extend_area)
+                quad_area = Polygon(quad)
+                if quad_area.within(crop_area):
+                    # Quad in crop, add to outset
+                    out_cont.append(content)
+                    out_quad.append(quad)
+                elif quad_area.crosses(crop_area):
+                    if quad_area.crosses(extend_area):
+                        # Quad crosses extinct, extend and crop area, fill poly and discard
+                        pass
+                    else:
+                        # Quad is in extend and crop area, add to and expand crop or discard then fill poly
+                        pass
+                else:
+                    if quad_area.within(extend_area):
+                        # Quad is in extend area, add to and expand crop or discard then shrink extend
+                        pass
+                    elif quad_area.crosses(extend_area):
+                        # Quad is in extinct and extend area, discard and shrink extend
+                        pass
+                # Otherwise quad is in extinct, just discard
+        else:
+            # Otherwise do no cropping, return the original image and annotations
+            out_quad = quads
+            out_cont = contents
+    return img, out_quad, out_cont
 
 # Computational Geometry
 # Most of these functions are adopted from EAST.
@@ -657,6 +736,37 @@ def show_gray_colormap(array):
 
 
 # Other helpers
+def is_two_rect_overlapping(rect_A, rect_B):
+    (xmin_A, ymin_A), (xmax_A, ymax_A) = rect_A
+    (xmin_B, ymin_B), (xmax_B, ymax_B) = rect_B
+    if xmin_A < xmin_B and xmax_A < xmin_B:
+        return False
+    elif xmin_A > xmax_B and xmax_A > xmax_B:
+        return False
+    if ymin_A < ymin_B and ymax_A < ymin_B:
+        return False
+    elif ymin_A > ymax_B and ymax_A > ymax_B:
+        return False
+    return True
+
+
+def rect2Polygon(rect):
+    (x0, y0), (x1, y1) = rect
+    return Polygon([(x0, y0), (x0, y1), (x1, y1), (x1, y0)])
+
+
+def quad2rect(quad):
+    xmin = quad[0][0]
+    ymin = quad[0][1]
+    xmax = ymax = 0
+    for p in quad:
+        xmin = min(p[0], xmin)
+        xmax = max(p[0], xmax)
+        ymin = min(p[1], ymin)
+        ymax = max(p[1], ymax)
+    return [(xmin, ymin), (xmax, ymax)]
+
+
 def exchange_point_axis(p):
     return np.array([p[1], p[0]])
 

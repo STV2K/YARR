@@ -144,8 +144,8 @@ class Kaisei(nn.Module):
         return score_map, geometry_map
 
 
-class Hokuto(nn.Module):
-    """
-    TODO: The end-to-end framework
-    """
-    pass
+# class Hokuto(nn.Module):
+#     """
+#     TODO: The end-to-end framework
+#     """
+#     pass
