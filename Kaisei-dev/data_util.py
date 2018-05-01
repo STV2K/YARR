@@ -168,10 +168,9 @@ def random_crop(img, quads, contents, bools, prob_bg=0.15, prob_partial=0.79,
                 if quad_area.intersects(crop_area):  # within() and crosses() seems to be inadequate
                     # fill poly
                     draw.polygon(quad, fill=(w % 256, h % 256, (w + h) % 256))
-            del draw
+            del draw  # Not sure if this is necessary
             crop_img = img.copy().crop((x, y, w + x, h + y))
             crop_img.load()
-            # del draw  # Not sure if this is necessary
             # print("Cropping bg ", (x, y, w + x, h + y))
             return crop_img, [], [], []
         else:
@@ -837,7 +836,6 @@ def rect2quad(rect):
     return [(x0, y0), (x0, y1), (x1, y1), (x1, y0)]
 
 
-
 def exchange_point_axis(p):
     return np.array([p[1], p[0]])
 
@@ -969,7 +967,6 @@ class STV2KDetDataset(Dataset):
         img_ori_size = img.size
         img_filename = str(os.path.basename(img_path))
         label_path = img_path.replace(img_filename.split('.')[1], 'txt')
-        img, resize_ratio = resize_image_fixed_square(img)
         # Generate score_map and geo_map of 1/4 (w, h) of image size to match the network output
         # Fix: 0~1 // 4 == 0!
         # NB: Passing 1/4 ratio to generate score and geo maps may evoke mysterious computational geometry problems.
@@ -977,23 +974,26 @@ class STV2KDetDataset(Dataset):
         # size_1_4 = (img.size[0] // 4, img.size[1] // 4)
         # TODO: merge augmentations (random cropping, color twitching)
         label_quad, label_content, label_bool = load_annotation(label_path)
-        valid_quad, valid_cont, valid_bool = check_and_validate_polys(label_quad, label_content, label_bool, img_ori_size)
+        valid_quad, valid_cont, valid_bool = check_and_validate_polys(label_quad, label_content,
+                                                                      label_bool, img_ori_size)
         # Use float quads to generate maps
-        valid_quad_resized = np.array(valid_quad)
+        crop_img, crop_quad, crop_cont, crop_bool = random_crop(img, valid_quad, valid_cont, valid_bool)
+        color_twitch_crop_img = Image.fromarray(np_img_color_twitch(np.array(crop_img)))
+        gen_img, resize_ratio = resize_image_fixed_square(color_twitch_crop_img)
+        valid_quad_resized = np.array(crop_quad)
         if len(valid_quad_resized):
             valid_quad_resized[:, :, 0] *= resize_ratio[0]
             valid_quad_resized[:, :, 1] *= resize_ratio[1]
-        score_map, geo_map, training_mask = generate_rbox(img.size, valid_quad_resized,
+        score_map, geo_map, training_mask = generate_rbox(gen_img.size, valid_quad_resized,
                                                           valid_bool, valid_cont, img_path)
         # return img, valid_quad, valid_cont, score_map, geo_map, training_mask
         # Downsample the groundtruth to match the output size
         # print("Finishing img:", img_path)
-        return self.toTensor(img), torch.FloatTensor(score_map[::, ::4, ::4]), \
+        return self.toTensor(gen_img), torch.FloatTensor(score_map[::, ::4, ::4]), \
             torch.FloatTensor(geo_map[::, ::4, ::4]), torch.FloatTensor(training_mask[::, ::4, ::4])
 
 
 class DataProvider:
-    # count = 0
 
     def __init__(self, batch_size=8, is_cuda=False, num_workers=config.data_loader_worker_num,
                  data_path=config.training_data_path_z440):
@@ -1004,13 +1004,14 @@ class DataProvider:
         self.iteration = 0  # iteration num of current epoch
         self.epoch = 0  # total epoch(s) finished
         self.num_workers = num_workers
-        if "train" in data_path:
-           self.image_channel_means = config.STV2K_train_image_channel_means
-        elif "test" in data_path:
-            self.image_channel_means = config.STV2K_test_image_channel_means
-        else:
-            self.image_channel_means = None
-        print("Image channel means set to ", self.image_channel_means, " for dataset on ", data_path)
+        print("Image mean normalization is temporarily disabled.")
+        # if "train" in data_path:
+        #    self.image_channel_means = config.STV2K_train_image_channel_means
+        # elif "test" in data_path:
+        #     self.image_channel_means = config.STV2K_test_image_channel_means
+        # else:
+        #     self.image_channel_means = None
+        # print("Image channel means set to ", self.image_channel_means, " for dataset on ", data_path)
 
     def build(self):
         data_loader = DataLoader(self.dataset, batch_size=self.batch_size,
@@ -1023,14 +1024,13 @@ class DataProvider:
         try:
             batch = self.data_iter.next()
             self.iteration += 1
-            if self.image_channel_means is not None:
-                batch[0] = image_normalize(batch[0], self.image_channel_means)
+            # Disable normalization
+            # if self.image_channel_means is not None:
+            #     batch[0] = image_normalize(batch[0], self.image_channel_means)
             if self.is_cuda:
                 for i in range(len(batch)):
                     if isinstance(batch[i], torch.Tensor):
                         batch[i] = batch[i].cuda()
-            # self.count += self.batch_size
-            # print(self.count)
             return batch
 
         except StopIteration:  # Reload after one epoch

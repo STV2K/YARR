@@ -14,16 +14,16 @@ test_data_path_z440 = "/home/xhuang/Research/Datasets/STV2K_New/stv2k_test"
 alphabet_filename = "stv2k_alphabet_2784_no-blank.txt"  # TODO: Remove upper English letters
 
 expr_name = "Kaisei-det"
-log_file_name = expr_name + "_fixlr-5e-5_run1.2.cont"
+log_file_name = expr_name + "_fixlr-5e-5_run3.cont"
 
 # Constants
 STV2K_image_width = 2448
 STV2K_image_height = 3264
 STV2K_train_image_num = 1215
 STV2K_test_image_num = 853
-STV2K_train_image_channel_means = (112.7965, 106.6500, 101.0181)
+STV2K_train_image_channel_means = (112.7965 / 255, 106.6500 / 255, 101.0181 / 255)
 STV2K_train_image_channel_std = (19.3811, 18.2817, 19.1222)
-STV2K_test_image_channel_means = (113.4384, 109.0392, 102.7425)
+STV2K_test_image_channel_means = (113.4384 / 255, 109.0392 / 255, 102.7425 / 255)
 STV2K_test_image_channel_std = (21.3310, 20.0747, 20.0667)
 
 # Data and Augmentation Settings
@@ -34,7 +34,7 @@ max_side_len = 1280
 fixed_len = 640  # So we generate gt of size 400*400
 
 # Detection Branch Settings
-text_scale = 1024  # Decides the receptive field of detection branch
+text_scale = 640  # Decides the receptive field of detection branch
 score_map_threshold = 0.8
 box_threshold = 0.1
 nms_threshold = 0.2
@@ -56,7 +56,7 @@ notify_interval = 30
 ckpt_interval = 500
 ckpt_path = "./save_points/netKAISEI_0_7500.pth"
 on_cuda = True
-continue_train = True
+continue_train = False
 ckpt_filename = ""
 
 # Optimizer and Learning Policy

@@ -4,6 +4,7 @@
 
 import os
 import time
+import pickle
 
 import cv2
 import torch
@@ -43,7 +44,7 @@ def detect(score_map, geo_map, timer, score_map_thresh=config.score_map_threshol
     if len(score_map.shape) == 4:
         score_map = score_map[0, :, :, 0]
         geo_map = geo_map[0, :, :, ]
-    # TODO: fatal problems here, score seems to be NOT CONVERGED
+    # TODO-REDO: fatal problems here, score seems to be NOT CONVERGED
     print(score_map, geo_map.shape)  # filter the score map
     xy_text = np.argwhere(score_map > score_map_thresh)
     # sort the text boxes via the y axis
@@ -62,6 +63,7 @@ def detect(score_map, geo_map, timer, score_map_thresh=config.score_map_threshol
     boxes = lanms.merge_quadrangle_n9(boxes.astype('float32'), nms_thresh)
     timer['nms'] = time.time() - start
 
+    print('{} text boxes after nms'.format(boxes.shape[0]))
     if boxes.shape[0] == 0:
         return None, timer
 
@@ -83,6 +85,7 @@ def detect_image(net_path, img_path):
         start_time = time.time()
         img_resized, (ratio_w, ratio_h) = du.resize_image_fixed_square(img)
         img_tensor = transforms.ToTensor()(img_resized).unsqueeze_(0)
+        # img_tensor = du.image_normalize(img_tensor)
         if config.on_cuda:
             img_tensor = img_tensor.cuda()
         timer = {'net': 0, 'restore': 0, 'nms': 0}
@@ -103,6 +106,8 @@ def detect_image(net_path, img_path):
         print('[timing] {}'.format(duration))
 
         # save to file
+        with open("results_det/" + im_fn + "_score.pcl", "wb") as pf:
+            pickle.dump([score, geo], pf)
         if boxes is not None:
             res_file = os.path.join(config.detect_output_dir,
                                     '{}.txt'.format(

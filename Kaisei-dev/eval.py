@@ -8,10 +8,12 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 
-import config
 import lanms
+import config
+import helpers
 import data_util as du
 
+logger = helpers.ExpLogger(config.log_file_name + "eval")
 
 # The following methods are adopted from EAST.
 def dice_coefficient(y_true_cls, y_pred_cls, training_mask):
@@ -24,6 +26,8 @@ def dice_coefficient(y_true_cls, y_pred_cls, training_mask):
     intersection = torch.sum(y_true_cls * y_pred_cls * training_mask)
     union = torch.sum(y_true_cls * training_mask) + torch.sum(y_pred_cls * training_mask) + eps
     dice_loss = 1. - (2 * intersection / union) + negative_loss
+    logger.tee("neg loss: " + str(negative_loss.data))
+    logger.tee("cls loss: " + str(dice_loss.data))
     # TODO: check how neg_loss works; scalar to tensorboard
     # tf.summary.scalar('classification_dice_loss', loss)
     return dice_loss
@@ -63,6 +67,7 @@ def loss(y_true_cls, y_pred_cls, y_true_geo, y_pred_geo, training_mask):
     l_g = l_AABB + 20 * l_theta
     # print("Loss:", l_g, " AABB:", l_AABB, " theta:", l_theta, " ret:", torch.mean(l_g * y_true_cls * training_mask) +
     #      classification_loss)
+    logger.tee("l_g loss: " + str(torch.mean(l_g * y_true_cls * training_mask).data))
     return torch.mean(l_g * y_true_cls * training_mask) + classification_loss
 
 
