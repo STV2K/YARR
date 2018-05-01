@@ -178,6 +178,7 @@ def train_batch(net, criterion, optimizer):
 
 def detection_train():
     criterion = eval.loss
+    i = 0
     if config.on_cuda:
         logger.tee("Using CUDA device %s id %d" % (torch.cuda.get_device_name(torch.cuda.current_device()),
                                                    torch.cuda.current_device()))
@@ -185,7 +186,6 @@ def detection_train():
         logger.tee("CUDA disabled")
     for epoch in range(config.epoch_num):
         epoch_now = train_loader.epoch
-        i = 0
         while epoch_now == train_loader.epoch:
             for p in kaisei.parameters():
                 p.requires_grad = True

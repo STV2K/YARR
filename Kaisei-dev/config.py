@@ -44,10 +44,10 @@ detect_output_dir = "results_det/"
 input_height = 8
 
 # GPU Training Settings
-data_loader_worker_num = 4  # Setting to 0 will load data in the main process
-gpu_list = [1]
-batch_size = 8  # set to 16 during training
-test_batch_size = 8
+data_loader_worker_num = 5  # Setting to 0 will load data in the main process
+gpu_list = [0]
+batch_size = 10  # set to 16 during training
+test_batch_size = 10
 test_iter_num = 5
 iter_num = 1000
 epoch_num = 500

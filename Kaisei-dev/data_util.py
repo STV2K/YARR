@@ -972,7 +972,8 @@ class STV2KDetDataset(Dataset):
         # NB: Passing 1/4 ratio to generate score and geo maps may evoke mysterious computational geometry problems.
         # ratio_1_4 = (resize_ratio[0] / 4, resize_ratio[1] / 4)
         # size_1_4 = (img.size[0] // 4, img.size[1] // 4)
-        # TODO: merge augmentations (random cropping, color twitching)
+        # TODO_DONE: merge augmentations (random cropping, color twitching)
+        # TODO: Do we need augmentation while eval here? Or adopt a different policy on cropping?
         label_quad, label_content, label_bool = load_annotation(label_path)
         valid_quad, valid_cont, valid_bool = check_and_validate_polys(label_quad, label_content,
                                                                       label_bool, img_ori_size)
