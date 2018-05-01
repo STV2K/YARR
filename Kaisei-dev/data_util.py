@@ -13,6 +13,7 @@ import torch
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 from PIL import Image
+from PIL import ImageDraw
 from PIL import ImageDraw2
 from shapely.geometry import Polygon
 from torch.autograd import Variable
@@ -129,13 +130,15 @@ def resize_image_fixed_square(image, fixed_len=config.fixed_len):
     return im, (ratio_w, ratio_h)
 
 
-def random_crop(img, quads, contents, prob_bg=0.30, prob_partial=0.64, top_left_point_ratio=0.75, min_crop_ratio=0.2):
+def random_crop(img, quads, contents, bools, prob_bg=0.15, prob_partial=0.79,
+                top_left_point_ratio=0.75, min_crop_ratio=0.2):
     """
     Randomly cropping.
     :param img: An PIL Image obj.
     :param quads: Annotation of quadrilaterals with size and direction validated,
                   formatted as [[(x1, y1), ...], ...](np.array).
     :param contents: Annotation of text contents.
+    :param bools: Bools of text contents.
     :param prob_bg: Probability to crop a background area, otherwise crop partial or don't crop.
     :param prob_partial: Probability to crop a partial out, otherwise don't crop.
     :param top_left_point_ratio: Which area top-left point of crop area will be generated into.
@@ -143,6 +146,7 @@ def random_crop(img, quads, contents, prob_bg=0.30, prob_partial=0.64, top_left_
     :return: Cropped img, quads and contents.
     """
     assert top_left_point_ratio + min_crop_ratio < 1
+    img = img.copy()
     rand = np.random.random()
     if rand < prob_bg + prob_partial:
         imw, imh = img.size
@@ -155,29 +159,35 @@ def random_crop(img, quads, contents, prob_bg=0.30, prob_partial=0.64, top_left_
         boarder_left = boarder_top = 0
         boarder_right = imw
         boarder_bottom = imh
+        draw = ImageDraw.Draw(img)
         if rand < prob_bg:
             # Generate negative samples
-            # TODO: crop_bg
-            crop_area = rect2Polygon([(x, y), (x, y + h), (x + w, y + h), (x + w, y)])
+            crop_area = Polygon([(x, y), (x, y + h), (x + w, y + h), (x + w, y)])
             for quad, content in zip(quads, contents):
                 quad_area = Polygon(quad)
-                if quad_area.within(crop_area) or quad_area.crosses(crop_area):
-                    pass
+                if quad_area.intersects(crop_area):  # within() and crosses() seems to be inadequate
                     # fill poly
-            return img, [], []
-        elif rand < prob_bg + prob_partial:
-            # TODO: crop partial
+                    draw.polygon(quad, fill=(w % 256, h % 256, (w + h) % 256))
+            del draw
+            crop_img = img.copy().crop((x, y, w + x, h + y))
+            crop_img.load()
+            # del draw  # Not sure if this is necessary
+            # print("Cropping bg ", (x, y, w + x, h + y))
+            return crop_img, [], [], []
+        else:
+            # crop partial, may be minor bug with the shapely judgements
             crop_update = True
             extend_update = True
             out_quad = []
             out_cont = []
-            for quad, content in zip(quads, contents):
+            out_bool = []
+            for quad, content, tag_bool in zip(quads, contents, bools):
                 if crop_update:
-                    crop_area = rect2Polygon([(x, y), (x, y + h), (x + w, y + h), (x + w, y)])
+                    crop_area = Polygon([(x, y), (x, y + h), (x + w, y + h), (x + w, y)])
                     crop_update = False
                 if extend_update:
-                    extend_area = rect2Polygon([(boarder_top, boarder_left), (boarder_top, boarder_right),
-                                                (boarder_bottom, boarder_right), (boarder_bottom, boarder_left)])
+                    extend_area = Polygon([(boarder_top, boarder_left), (boarder_top, boarder_right),
+                                            (boarder_bottom, boarder_right), (boarder_bottom, boarder_left)])
                     extend_update = False
                 # assert crop_area.within(extend_area)
                 quad_area = Polygon(quad)
@@ -185,26 +195,66 @@ def random_crop(img, quads, contents, prob_bg=0.30, prob_partial=0.64, top_left_
                     # Quad in crop, add to outset
                     out_cont.append(content)
                     out_quad.append(quad)
-                elif quad_area.crosses(crop_area):
-                    if quad_area.crosses(extend_area):
+                    out_bool.append(tag_bool)
+                elif quad_area.intersects(crop_area):
+                    if not quad_area.within(extend_area):
                         # Quad crosses extinct, extend and crop area, fill poly and discard
-                        pass
+                        draw.polygon(quad, fill=(w % 256, h % 256, (w + h) % 256))
+                        # print("OEC ", content)
                     else:
-                        # Quad is in extend and crop area, add to and expand crop or discard then fill poly
-                        pass
+                        # Quad is in extend and crop area, add to and expand crop
+                        # for simplicity, we won't choose to discard then fill poly
+                        [(q_xmin, q_ymin), (q_xmax, q_ymax)] = quad2rect(quad)
+                        if q_xmin < x:
+                            w += int(x - q_ymax)
+                            x = q_xmin
+                        if q_ymin < y:
+                            h += int(y - q_ymin)
+                            y = q_ymin
+                        w = int(q_xmax - x) if q_xmax > (x + w) else w
+                        h = int(q_ymax - y) if q_ymax > (y + h) else h
+                        crop_update = True
+                        out_cont.append(content)
+                        out_quad.append(quad)
+                        out_bool.append(tag_bool)
+                        # print("EC ", content)
                 else:
-                    if quad_area.within(extend_area):
-                        # Quad is in extend area, add to and expand crop or discard then shrink extend
-                        pass
-                    elif quad_area.crosses(extend_area):
+                    # print("O/E ", content)
+                    # if quad_area.within(extend_area) or quad_area.crosses(extend_area):
+                    if quad_area.intersects(extend_area):
+                        # Within:
+                        # Quad is in extend area, discard then shrink extend
+                        # for simplicity, we won't choose to add to and expand crop
+                        # Crosses:
                         # Quad is in extinct and extend area, discard and shrink extend
-                        pass
-                # Otherwise quad is in extinct, just discard
-        else:
-            # Otherwise do no cropping, return the original image and annotations
-            out_quad = quads
-            out_cont = contents
-    return img, out_quad, out_cont
+                        [(q_xmin, q_ymin), (q_xmax, q_ymax)] = quad2rect(quad)
+                        boarder_top = q_ymin if q_ymin > boarder_top else boarder_top
+                        boarder_bottom = q_ymax if q_ymax < boarder_bottom else boarder_bottom
+                        boarder_left = q_xmin if q_xmin > boarder_left else boarder_left
+                        boarder_right = q_xmax if q_xmax < boarder_right else boarder_right
+                        extend_update = True
+                        # print("E shrink")
+                    # else:  # Otherwise quad is in extinct, just discard
+                        # print("Quad in extinct: ", content)
+            # print("Cropping partial ", (x, y, w + x, h + y))
+            del draw
+            crop_img = img.copy().crop((x, y, w + x, h + y))
+            crop_img.load()
+            # Update quads
+            if len(out_quad):
+                out_quad = np.array(out_quad)
+                out_quad[:, :, 0] -= x
+                out_quad[:, :, 1] -= y
+    else:
+        # Otherwise do no cropping, return the original image and annotations
+        # print("No crop")
+        crop_img = img
+        out_quad = quads
+        out_cont = contents
+        out_bool = bools
+
+    return crop_img, out_quad, out_cont, out_bool
+
 
 # Computational Geometry
 # Most of these functions are adopted from EAST.
@@ -751,20 +801,41 @@ def is_two_rect_overlapping(rect_A, rect_B):
 
 
 def rect2Polygon(rect):
-    (x0, y0), (x1, y1) = rect
+    [(x0, y0), (x1, y1)] = rect
     return Polygon([(x0, y0), (x0, y1), (x1, y1), (x1, y0)])
 
 
+def vis_quad(img, quads):
+    im = img.copy()
+    draw = ImageDraw.Draw(im)
+    for quad in quads:
+        draw.polygon(quad)
+    del draw
+    im.show()
+
+
 def quad2rect(quad):
-    xmin = quad[0][0]
-    ymin = quad[0][1]
-    xmax = ymax = 0
-    for p in quad:
-        xmin = min(p[0], xmin)
-        xmax = max(p[0], xmax)
-        ymin = min(p[1], ymin)
-        ymax = max(p[1], ymax)
-    return [(xmin, ymin), (xmax, ymax)]
+    """
+    Return the rectangle corresponding to the quadrilateral.
+    :param quad: A numpy array.
+    :return: the rectangle.
+    """
+    # xmin = quad[0][0]
+    # ymin = quad[0][1]
+    # xmax = ymax = 0
+    # for p in quad:
+    #     xmin = min(p[0], xmin)
+    #     xmax = max(p[0], xmax)
+    #     ymin = min(p[1], ymin)
+    #     ymax = max(p[1], ymax)
+    # return [(xmin, ymin), (xmax, ymax)]
+    return np.array([(min(quad[:, 0]), min(quad[:, 1])), (max(quad[:, 0]), max(quad[:, 1]))])
+
+
+def rect2quad(rect):
+    [(x0, y0), (x1, y1)] = rect
+    return [(x0, y0), (x0, y1), (x1, y1), (x1, y0)]
+
 
 
 def exchange_point_axis(p):
@@ -828,6 +899,40 @@ def calc_image_channel_std(img_list, img_means):
     return std_calc.get_std()
 
 
+def np_img_color_twitch(img, prob_1=0.6, prob_2=0.25, prob_3=0.10, max_twitch=0.38):
+    """
+    Twitch color of an image for augmentation on channel level.
+    :param img: Image as np.array with convention(w, h, c)
+    :param prob_1: Probability to twitch one channel
+    :param prob_2: Probability to twitch two channels
+    :param prob_3: Probability to twitch all channels
+    :param max_twitch: Maximum twitch scale allowed.
+    :return: Twitched image.
+    """
+    channel_idx = [0, 1, 2]
+    prob = np.random.random()
+    if prob < (prob_1 + prob_2 + prob_3):
+        twitch_one_channel(img, channel_idx, max_twitch)
+        if prob > prob_1:
+            twitch_one_channel(img, channel_idx, max_twitch)
+            if prob > (prob_1 + prob_2):
+                twitch_one_channel(img, channel_idx, max_twitch)
+
+    return np.clip(img, 0, 255)
+
+
+def twitch_one_channel(img, channel_idx, max_twitch):
+    ch = np.random.choice(channel_idx)
+    scale = (np.random.random() * 2 - 1) * max_twitch
+    channel_idx.remove(ch)
+    if scale > 0:
+        # twitch with different methods to prevent out-of-board
+        img[:, :, ch] = img[:, :, ch] + scale * (255 - img[:, :, ch])
+    else:
+        img[:, :, ch] = img[:, :, ch] * (scale + 1)
+    # print("Twitch ch ", ch, " with scale ", scale)
+
+
 # PyTorch Data Warp-up
 # TODO_COMPROMISED: fix issue that default collate_fn cannot deal with various sized tensor, which requires turning
 #  into lists or to sample pictures for mini-batches in an aspect-ratio-respecting way
@@ -870,7 +975,7 @@ class STV2KDetDataset(Dataset):
         # NB: Passing 1/4 ratio to generate score and geo maps may evoke mysterious computational geometry problems.
         # ratio_1_4 = (resize_ratio[0] / 4, resize_ratio[1] / 4)
         # size_1_4 = (img.size[0] // 4, img.size[1] // 4)
-        # TODO: do augmentation by random cropping
+        # TODO: merge augmentations (random cropping, color twitching)
         label_quad, label_content, label_bool = load_annotation(label_path)
         valid_quad, valid_cont, valid_bool = check_and_validate_polys(label_quad, label_content, label_bool, img_ori_size)
         # Use float quads to generate maps
