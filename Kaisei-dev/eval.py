@@ -23,7 +23,7 @@ def dice_coefficient(y_true_cls, y_pred_cls, training_mask):
     """
     eps = 1e-5
     # Custom: add negative_loss here
-    negative_loss = torch.mean(y_pred_cls * y_true_cls.sub(1) * training_mask)
+    negative_loss = torch.mean(torch.abs(y_pred_cls * y_true_cls.sub(1) * training_mask))
     intersection = torch.sum(y_true_cls * y_pred_cls * training_mask)
     union = torch.sum(y_true_cls * training_mask) + torch.sum(y_pred_cls * training_mask) + eps
     dice_loss = 1. - (2 * intersection / union) + negative_loss

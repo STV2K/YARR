@@ -14,7 +14,7 @@ test_data_path_z440 = "/home/xhuang/Research/Datasets/STV2K_New/stv2k_test"
 alphabet_filename = "stv2k_alphabet_2784_no-blank.txt"  # TODO: Remove upper English letters
 
 expr_name = "Kaisei-det"
-log_file_name = expr_name + "_fixlr-5e-5_run3.cont"
+log_file_name = expr_name + "_fixlr-5e-5_run3"
 
 # Constants
 STV2K_image_width = 2448
