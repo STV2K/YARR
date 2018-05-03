@@ -21,68 +21,6 @@ img_width = config.FLAGS.input_size_width
 img_height = config.FLAGS.input_size_height
 ckpt_path = config.FLAGS.ckpt_path
 
-def get_model_data(model):
-    ckpt_path = os.path.join(model_dir, model)
-    reader = pywrap_tensorflow.NewCheckpointReader(ckpt_path)
-    var_map = reader.get_variable_to_shape_map()
-
-    # this loads variables in session within the code
-    # var_list = tf.global_variables()
-    # for key in var_map:
-        # print('tensor_name: ', key)
-        # print(reader.get_tensor(key))
-    return var_map, reader
-
-def turn_into_bbox(x1, x2, x3, x4, y1, y2, y3, y4, num):
-    bboxes = []
-    angles = []
-    for i in range(num):
-        x = [x1[i], x2[i], x3[i], x4[i]]
-        y = [y1[i], y2[i], y3[i], y4[i]]
-        xmin = min(x) / img_width
-        xmax = max(x) / img_width
-        ymin = min(y) / img_height
-        ymax = max(y) / img_height
-
-        angle = data_utils.get_poly_angle([[x1[i], y1[i]], [x2[i], y2[i]], [x3[i], y3[i]], [x4[i], y4[i]]])
-
-        bbox = np.clip([ymin, xmin, ymax, xmax], 0.0, 1.0)
-        bboxes.append(bbox)
-        angles.append(angle)
-
-    return bboxes, angles
-
-
-def generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num):
-    batch_bboxes = []
-    batch_angles = []
-    batch_labels = []
-    max_num = 0
-    for i in range(len(b_bbox_num)):
-        if max_num < b_bbox_num[i][0]:
-            max_num = b_bbox_num[i][0]
-
-    for i in range(len(b_bbox_num)):
-        bboxes, angles = turn_into_bbox(b_x1[i], b_x2[i], b_x3[i], b_x4[i], b_y1[i], b_y2[i], b_y3[i], b_y4[i], b_bbox_num[i][0])
-        j = now_num = b_bbox_num[i][0]
-        while j < max_num:
-            bboxes.append([0., 0., 0., 0.])
-            angles.append(0.)
-            j += 1
-        batch_bboxes.append(bboxes)
-        batch_angles.append(angles)
-
-        labels = [1 for j in range(now_num)]
-        labels = labels + [0 for j in range(max_num - now_num)]
-        batch_labels.append(labels)
-    # print(bboxes)
-
-    batch_labels = np.array(batch_labels)
-    batch_bboxes = np.array(batch_bboxes)
-    batch_angles = np.array(batch_angles)
-    return batch_labels, batch_bboxes, batch_angles
-
-
 
 def train():
 
@@ -155,13 +93,14 @@ def train():
                 b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num = \
                     sess.run([image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num])
 
-                b_labels, b_bboxes, b_angles = generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
+#                b_labels, b_bboxes, b_angles = data_utils.generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
+                b_images, b_labels, b_bboxes, b_angles = data_utils.generate_augmentation(b_image, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num)
                 #print(b_labels.shape)
                 #print(b_bboxes.shape)
                 #print((b_angles / np.pi * 180) < -45)
                     
                 _, ploss, nloss, lcloss, aloss, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, angle_loss, merged],
-                                                                feed_dict={inputs: b_image, label: b_labels, bboxes: b_bboxes, angles:b_angles})
+                                                                feed_dict={inputs: b_images, label: b_labels, bboxes: b_bboxes, angles:b_angles})
 
                 summary_writer.add_summary(summary_str, step)
                 summary_writer.flush()

@@ -16,6 +16,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 img_width = config.FLAGS.input_size_width
 img_height = config.FLAGS.input_size_height
+tf_to_img_width = 2000
+tf_to_img_height = 2000
 train_image_path = '/media/data1/hcxiao/ICDAR15-IncidentalSceneText/ch4_train_images/'
 train_gt_path = '/media/data1/hcxiao/ICDAR15-IncidentalSceneText/ch4_train_gts/'
 
@@ -218,10 +220,255 @@ def get_angle(poly):
 def get_poly_angle(poly):
     poly = np.array(poly)
     #poly = get_parallelogram(poly)
-    poly = sort_poly(poly)
+    #poly = sort_poly(poly)
     poly = rectangle_from_parallelogram(poly)
     angle = get_angle(poly)
     return angle
+
+
+def get_model_data(model):
+    ckpt_path = os.path.join(model_dir, model)
+    reader = pywrap_tensorflow.NewCheckpointReader(ckpt_path)
+    var_map = reader.get_variable_to_shape_map()
+
+    # this loads variables in session within the code
+    # var_list = tf.global_variables()
+    # for key in var_map:
+        # print('tensor_name: ', key)
+        # print(reader.get_tensor(key))
+    return var_map, reader
+
+def turn_into_bbox(x1, x2, x3, x4, y1, y2, y3, y4, num):
+    bboxes = []
+    angles = []
+    for i in range(num):
+        x = [x1[i], x2[i], x3[i], x4[i]]
+        y = [y1[i], y2[i], y3[i], y4[i]]
+        xmin = min(x) / img_width
+        xmax = max(x) / img_width
+        ymin = min(y) / img_height
+        ymax = max(y) / img_height
+
+        angle = get_poly_angle([[x1[i], y1[i]], [x2[i], y2[i]], [x3[i], y3[i]], [x4[i], y4[i]]])
+
+        bbox = np.clip([ymin, xmin, ymax, xmax], 0.0, 1.0)
+        bboxes.append(bbox)
+        angles.append(angle)
+
+    return bboxes, angles
+
+def turn_poly_into_bbox(polys):
+    bboxes = []
+    angles = []
+
+    for poly in polys:
+        if np.sum(poly) == 0:
+            continue
+        angle = get_poly_angle(poly)
+        xmin = np.min(poly[:, 0])
+        ymin = np.min(poly[:, 1])
+        xmax = np.max(poly[:, 0])
+        ymax = np.max(poly[:, 1])
+        bbox = np.clip([ymin, xmin, ymax, xmax], 0.0, 1.0)
+
+        bboxes.append(bbox)
+        angles.append(angle)
+    return bboxes, angles
+
+
+
+def generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num):
+    batch_bboxes = []
+    batch_angles = []
+    batch_labels = []
+    max_num = 0
+    for i in range(len(b_bbox_num)):
+        if max_num < b_bbox_num[i][0]:
+            max_num = b_bbox_num[i][0]
+
+    for i in range(len(b_bbox_num)):
+        bboxes, angles = turn_into_bbox(b_x1[i], b_x2[i], b_x3[i], b_x4[i], b_y1[i], b_y2[i], b_y3[i], b_y4[i], b_bbox_num[i][0])
+        j = now_num = b_bbox_num[i][0]
+        while j < max_num:
+            bboxes.append([0., 0., 0., 0.])
+            angles.append(0.)
+            j += 1
+        batch_bboxes.append(bboxes)
+        batch_angles.append(angles)
+
+        labels = [1 for j in range(now_num)]
+        labels = labels + [0 for j in range(max_num - now_num)]
+        batch_labels.append(labels)
+    # print(bboxes)
+
+    batch_labels = np.array(batch_labels)
+    batch_bboxes = np.array(batch_bboxes)
+    batch_angles = np.array(batch_angles)
+    return batch_labels, batch_bboxes, batch_angles
+
+
+def generate_augmentation(b_images, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num):
+    batch_images = []
+    batch_bboxes = []
+    batch_angles = []
+    batch_labels = []
+    max_num = 0
+    for i in range(len(b_bbox_num)):
+        if max_num < b_bbox_num[i][0]:
+            max_num = b_bbox_num[i][0]
+
+    for i in range(len(b_bbox_num)):
+        polys = []
+        for x1, y1, x2, y2, x3, y3, x4, y4 in zip(b_x1[i], b_x2[i], b_x3[i], b_x4[i], b_y1[i], b_y2[i], b_y3[i], b_y4[i]):
+            poly = [[x1, y1], [x2 y2], [x3, y3], [x4, y4]]
+            poly = sort_poly(poly)
+            polys.append(poly)
+        b_image, b_polys = random_crop(b_images[i], polys)
+
+        b_image.save('./results/crop_%d.jpg' % i)
+
+        b_image = np.asarray(b_image)
+        batch_images.append(b_image)
+
+        bboxes, angles = turn_poly_into_bbox(b_polys)
+        j = bbox_num = len(bboxes)
+        while j < max_num:
+            bboxes.append([0., 0., 0., 0.])
+            angles.append(0.)
+            j += 1
+        batch_bboxes.append(bboxes)
+        batch_angles.append(angles)
+
+        labels = [1 for j in range(bbox_num)]
+        labels = labels + [0 for j in range(max_num - bbox_num)]
+        batch_labels.append(labels)
+
+    batch_labels = np.array(batch_labels)
+    batch_bboxes = np.array(batch_bboxes)
+    batch_angles = np.array(batch_angles)
+    return batch_images, batch_labels, batch_bboxes, batch_angles
+
+
+
+
+def random_crop(img, quads, prob_bg=0.05, prob_partial=0.79,
+                top_left_point_ratio=0.75, min_crop_ratio=0.2):
+    """
+    Randomly cropping.
+    :param img: An PIL Image obj.
+    :param quads: Annotation of quadrilaterals with size and direction validated,
+                  formatted as [[(x1, y1), ...], ...](np.array).
+    :param contents: Annotation of text contents.
+    :param bools: Bools of text contents.
+    :param prob_bg: Probability to crop a background area, otherwise crop partial or don't crop.
+    :param prob_partial: Probability to crop a partial out, otherwise don't crop.
+    :param top_left_point_ratio: Which area top-left point of crop area will be generated into.
+    :param min_crop_ratio: Minimal size ratio allowed for the cropped image.
+    :return: Cropped img, quads and contents.
+    """
+    assert top_left_point_ratio + min_crop_ratio < 1
+    img = img.copy()
+    rand = np.random.random()
+    if rand < prob_bg + prob_partial:
+        imw, imh = img.size
+        minw = int(imw * min_crop_ratio)
+        minh = int(imh * min_crop_ratio)
+        x = int(np.random.random() * top_left_point_ratio * imw)
+        y = int(np.random.random() * top_left_point_ratio * imh)
+        w = np.random.randint(minw, imw - x)
+        h = np.random.randint(minh, imh - y)
+        boarder_left = boarder_top = 0
+        boarder_right = imw
+        boarder_bottom = imh
+        draw = ImageDraw.Draw(img)
+        if rand < prob_bg:
+            # Generate negative samples
+            crop_area = Polygon([(x, y), (x, y + h), (x + w, y + h), (x + w, y)])
+            for quad in quads:
+                quad_area = Polygon(quad)
+                if quad_area.intersects(crop_area):  # within() and crosses() seems to be inadequate
+                    # fill poly
+                    draw.polygon(quad, fill=(w % 256, h % 256, (w + h) % 256))
+            del draw  # Not sure if this is necessary
+            crop_img = img.copy().crop((x, y, w + x, h + y))
+            crop_img.load()
+            # print("Cropping bg ", (x, y, w + x, h + y))
+            return crop_img, [], [], []
+        else:
+            # crop partial, may be minor bug with the shapely judgements
+            crop_update = True
+            extend_update = True
+            out_quad = []
+            for quad in quads:
+                if crop_update:
+                    crop_area = Polygon([(x, y), (x, y + h), (x + w, y + h), (x + w, y)])
+                    crop_update = False
+                if extend_update:
+                    extend_area = Polygon([(boarder_top, boarder_left), (boarder_top, boarder_right),
+                                            (boarder_bottom, boarder_right), (boarder_bottom, boarder_left)])
+                    extend_update = False
+                # assert crop_area.within(extend_area)
+                quad_area = Polygon(quad)
+                if quad_area.within(crop_area):
+                    # Quad in crop, add to outset
+                    out_quad.append(quad)
+                elif quad_area.intersects(crop_area):
+                    if not quad_area.within(extend_area):
+                        # Quad crosses extinct, extend and crop area, fill poly and discard
+                        draw.polygon(quad, fill=(w % 256, h % 256, (w + h) % 256))
+                        # print("OEC ", content)
+                    else:
+                        # Quad is in extend and crop area, add to and expand crop
+                        # for simplicity, we won't choose to discard then fill poly
+                        [(q_xmin, q_ymin), (q_xmax, q_ymax)] = quad2rect(quad)
+                        if q_xmin < x:
+                            w += int(x - q_ymax)
+                            x = q_xmin
+                        if q_ymin < y:
+                            h += int(y - q_ymin)
+                            y = q_ymin
+                        w = int(q_xmax - x) if q_xmax > (x + w) else w
+                        h = int(q_ymax - y) if q_ymax > (y + h) else h
+                        crop_update = True
+                        out_quad.append(quad)
+                        # print("EC ", content)
+                else:
+                    # print("O/E ", content)
+                    # if quad_area.within(extend_area) or quad_area.crosses(extend_area):
+                    if quad_area.intersects(extend_area):
+                        # Within:
+                        # Quad is in extend area, discard then shrink extend
+                        # for simplicity, we won't choose to add to and expand crop
+                        # Crosses:
+                        # Quad is in extinct and extend area, discard and shrink extend
+                        [(q_xmin, q_ymin), (q_xmax, q_ymax)] = quad2rect(quad)
+                        boarder_top = q_ymin if q_ymin > boarder_top else boarder_top
+                        boarder_bottom = q_ymax if q_ymax < boarder_bottom else boarder_bottom
+                        boarder_left = q_xmin if q_xmin > boarder_left else boarder_left
+                        boarder_right = q_xmax if q_xmax < boarder_right else boarder_right
+                        extend_update = True
+                        # print("E shrink")
+                    # else:  # Otherwise quad is in extinct, just discard
+                        # print("Quad in extinct: ", content)
+            # print("Cropping partial ", (x, y, w + x, h + y))
+            del draw
+            crop_img = img.copy().crop((x, y, w + x, h + y))
+            crop_img.load()
+            # Update quads
+            if len(out_quad):
+                out_quad = np.array(out_quad)
+                out_quad[:, :, 0] -= x
+                out_quad[:, :, 1] -= y
+    else:
+        # Otherwise do no cropping, return the original image and annotations
+        # print("No crop")
+        crop_img = img
+        out_quad = quads
+
+    crop_w, crop_h = crop_img.size
+    out_quad = np.true_divide(out_quad, [crop_w, crop_h])
+    crop_img = crop_img.resize((img_width,img_height), Image.ANTIALIAS)
+return crop_img, out_quad
 
 
 def resize_image(image, size,
@@ -627,14 +874,14 @@ def read_and_decode(filenames_string):
 
     image_shape = tf.stack([height[0], width[0], 3])
     image = tf.reshape(image, image_shape)
-    image_size_const = tf.constant((img_height, img_width, 3), dtype=tf.int32)
+    #image_size_const = tf.constant((img_height, img_width, 3), dtype=tf.int32)
     # resize_image = tf.image.resize_image_with_crop_or_pad(image=image,
     #                                                       target_height=IMAGE_HEIGHT,
     #                                                       target_width=IMAGE_WIDTH)
-    resize_image = tf.image.resize_images(image, size=[img_height, img_width])
+    resize_image = tf.image.resize_images(image, size=[tf_to_img_height, tf_to_img_width])
 
-    resize_ratio_x = tf.cast(img_width / width[0], tf.float32)
-    resize_ratio_y = tf.cast(img_height / height[0], tf.float32)
+    resize_ratio_x = tf.cast(tf_to_img_width / width[0], tf.float32)
+    resize_ratio_y = tf.cast(tf_to_img_height / height[0], tf.float32)
     x1_r = x1 * resize_ratio_x
     x2_r = x2 * resize_ratio_x
     x3_r = x3 * resize_ratio_x
@@ -689,54 +936,6 @@ def test_read():
         coord.request_stop()
         coord.join(threads)
 
-def turn_into_bbox(x1, x2, x3, x4, y1, y2, y3, y4, num):
-    bboxes = []
-    for i in range(num):
-        x = [x1[i], x2[i], x3[i], x4[i]]
-        y = [y1[i], y2[i], y3[i], y4[i]]
-        xmin = min(x) / img_width
-        xmax = max(x) / img_width
-        ymin = min(y) / img_height
-        ymax = max(y) / img_height
-
-        if xmin < 0:
-            xmin = 0
-        if ymin < 0:
-            ymin = 0
-        if xmax > 1:
-            xmax = 1
-        if ymax > 1:
-            ymax = 1
-
-        bbox = [ymin, xmin, ymax, xmax]
-        bboxes.append(bbox)
-
-    return bboxes
-
-def generate_batch_bboxes(b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_y4, b_bbox_num):
-    batch_bboxes = []
-    batch_labels = []
-    max_num = 0
-    for i in range(len(b_bbox_num)):
-        if max_num < b_bbox_num[i][0]:
-            max_num = b_bbox_num[i][0]
-
-    for i in range(len(b_bbox_num)):
-        bboxes = turn_into_bbox(b_x1[i], b_x2[i], b_x3[i], b_x4[i], b_y1[i], b_y2[i], b_y3[i], b_y4[i], b_bbox_num[i][0])
-        j = now_num = b_bbox_num[i][0]
-        while j < max_num:
-            bboxes.append([0., 0., 0., 0.])
-            j += 1
-        batch_bboxes.append(bboxes)
-
-        labels = [1 for j in range(now_num)]
-        labels = labels + [0 for j in range(max_num - now_num)]
-        batch_labels.append(labels)
-    # print(bboxes)
-
-    batch_labels = np.array(batch_labels)
-    batch_bboxes = np.array(batch_bboxes)
-    return batch_labels, batch_bboxes
 
 def test_process():
     image, x1_r, x2_r, x3_r, x4_r, y1_r, y2_r, y3_r, y4_r, bbox_num = read_data(train=True)
