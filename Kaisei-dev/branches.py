@@ -22,7 +22,9 @@ class DetectionBranch(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv3 = nn.Conv2d(128, 64, kernel_size=1, bias=False)
-        self.conv1_1 = nn.Conv2d(64, 1, kernel_size=1, stride=1,
+        self.conv1_1_0 = nn.Conv2d(64, 1, kernel_size=1, stride=1,
+                                 padding=0, bias=False)
+        self.conv1_1_1 = nn.Conv2d(64, 1, kernel_size=1, stride=1,
                                  padding=0, bias=False)
         self.conv1_4 = nn.Conv2d(64, 4, kernel_size=1, stride=1,
                                  padding=0, bias=False)
@@ -34,9 +36,9 @@ class DetectionBranch(nn.Module):
         """
         x = self.conv3(x)
         # Sigmoid are used to limit the output to 0-1
-        score_map = nnfunc.sigmoid(self.conv1_1(x))
+        score_map = nnfunc.sigmoid(self.conv1_1_0(x))
         # Angle are limited to [-45, 45]; for vertical ones, the angle is 0
-        angle_map = (nnfunc.sigmoid(self.conv1_1(x)) - 0.5) * np.pi / 2
+        angle_map = (nnfunc.sigmoid(self.conv1_1_1(x)) - 0.5) * np.pi / 2
         geo_map = nnfunc.sigmoid(self.conv1_4(x)) * config.text_scale
 
         geometry_map = torch.cat((geo_map, angle_map), dim=1)
