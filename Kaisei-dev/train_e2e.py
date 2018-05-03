@@ -4,7 +4,7 @@
 
 import os
 import random
-# import argparse
+import argparse
 
 import numpy as np
 import torch
@@ -12,15 +12,17 @@ import torch.utils.data
 import torch.optim as optim
 from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
+import torchvision
 # import tensorboardX
 
 import eval
-import config
-# import models
+import config_e2e as config
+import models
 import helpers
 import branches
+import rec_utils
 import data_util
-
+from warpctc_pytorch import CTCLoss
 
 # gpu_ids = list(range(len(config.gpu_list.split(','))))
 # gpu_id = config.gpu_list
@@ -39,10 +41,18 @@ cudnn.enabled = config.on_cuda
 
 train_loader = data_util.DataProvider(batch_size=config.batch_size,
                                       data_path=config.training_data_path_pami,
-                                      is_cuda=config.on_cuda)
+                                      is_cuda=config.on_cuda, with_text=True)
 test_loader = data_util.DataProvider(batch_size=config.test_batch_size,
                                      data_path=config.test_data_path_pami,
-                                     is_cuda=config.on_cuda, test_set=True)
+                                     is_cuda=config.on_cuda, with_text=True,
+                                     test_set=True)
+
+alphabet = data_util.load_alphabet_txt(config.alphabet_filepath, "GBK")
+ignore_char = data_util.load_alphabet_txt(config.ignore_char_filepath, "GBK")
+replace_dict = config.replace_dict
+n_class = len(alphabet) + 1
+converter = rec_utils.StrLabelConverter(alphabet)
+criterion = CTCLoss()
 
 
 def weights_init(module):
@@ -57,29 +67,36 @@ def weights_init(module):
         module.bias.data.fill_(0)
 
 
-kaisei = branches.Kaisei()
-kaisei.apply(weights_init)
+hokuto = branches.Hokuto(n_class, config.num_hidden_state)
+hokuto.apply(weights_init)
 
 if config.continue_train:
     logger.tee('loading pretrained model from %s' % config.ckpt_path)
-    kaisei.load_state_dict(torch.load(config.ckpt_path))
-# print(kaisei)
+    hokuto.load_state_dict(torch.load(config.ckpt_path))
+# print(hokuto)
 
 if config.on_cuda:
-    kaisei.cuda()
-#    kaisei = torch.nn.DataParallel(kaisei, device_ids=config.gpu_list)
+    hokuto.cuda()
+#    hokuto = torch.nn.DataParallel(hokuto, device_ids=config.gpu_list)
 
-# loss average
+# loss averages
+loss_det_avg = eval.LossAverage()
+loss_rec_avg = eval.LossAverage()
 loss_avg = eval.LossAverage()
 
 # setup optimizer
 if config.adam:
-    optimizer = optim.Adam(kaisei.parameters(), lr=config.lr,
+    optimizer = optim.Adam(hokuto.parameters(), lr=config.lr,
                            betas=(config.beta1, 0.999))
 elif config.adadelta:
-    optimizer = optim.Adadelta(kaisei.parameters(), lr=config.lr)
+    optimizer = optim.Adadelta(hokuto.parameters(), lr=config.lr)
 else:
-    optimizer = optim.RMSprop(kaisei.parameters(), lr=config.lr)
+    optimizer = optim.RMSprop(hokuto.parameters(), lr=config.lr)
+
+
+# image = torch.FloatTensor(opt.batchSize, 3, opt.imgH, opt.imgH)
+# text = torch.IntTensor(opt.batchSize * 5)
+# length = torch.IntTensor(opt.batchSize)
 
 
 def val(net, dataset, criterion, max_iter=config.test_iter_num):
@@ -94,6 +111,7 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
 
     net.eval()
     data_loader = test_loader
+    n_correct = 0
 
     # for i in range(max(len(data_loader.data_iter), max_iter)): TODO: Check here
     for i in range(max_iter):
@@ -107,10 +125,44 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
         pred_scores, pred_geos = net(img_batch)
         batch_loss = eval.loss(score_maps, pred_scores, geo_maps, pred_geos, training_masks)
         batch_loss = batch_loss / config.batch_size
-        loss_avg.add(batch_loss)
+        loss_det_avg.add(batch_loss)
 
     logger.tee('Test loss: %f' % (loss_avg.val()))
     loss_avg.reset()
+    # i = 0
+    #
+    # loss_avg = eval.LossAverage
+    #
+    # max_iter = min(max_iter, len(data_loader))
+    # for i in range(max_iter):
+    #     data = val_iter.next()
+    #     i += 1
+    #     cpu_images, cpu_texts = data
+    #     batch_size = cpu_images.size(0)
+    #     utils.loadData(image, cpu_images)
+    #     t, l = converter.encode(cpu_texts)
+    #     utils.loadData(text, t)
+    #     utils.loadData(length, l)
+    #
+    #     preds = crnn(image)
+    #     preds_size = Variable(torch.IntTensor([preds.size(0)] * batch_size))
+    #     cost = criterion(preds, text, preds_size, length) / batch_size
+    #     loss_avg.add(cost)
+    #
+    #     _, preds = preds.max(2)
+    #     preds = preds.squeeze(2)
+    #     preds = preds.transpose(1, 0).contiguous().view(-1)
+    #     sim_preds = converter.decode(preds.data, preds_size.data, raw=False)
+    #     for pred, target in zip(sim_preds, cpu_texts):
+    #         if pred == target.lower():
+    #             n_correct += 1
+    #
+    # raw_preds = converter.decode(preds.data, preds_size.data, raw=True)[:opt.n_test_disp]
+    # for raw_pred, pred, gt in zip(raw_preds, sim_preds, cpu_texts):
+    #     print('%-20s => %-20s, gt: %-20s' % (raw_pred, pred, gt))
+    #
+    # accuracy = n_correct / float(max_iter * opt.batchSize)
+    # print('Test loss: %f, accuray: %f' % (loss_avg.val(), accuracy))
 
 
 def train_batch(net, criterion, optimizer):
@@ -120,18 +172,29 @@ def train_batch(net, criterion, optimizer):
     score_maps = Variable(score_maps)
     geo_maps = Variable(geo_maps)
     training_masks = Variable(training_masks)
-    pred_scores, pred_geos = kaisei(img_batch)
+    pred_scores, pred_geos = hokuto(img_batch)
     batch_loss = eval.loss(score_maps, pred_scores, geo_maps, pred_geos, training_masks)
     batch_loss = batch_loss / config.batch_size
-    kaisei.zero_grad()
+    hokuto.zero_grad()
     batch_loss.backward()
     optimizer.step()
-
+    # cpu_images, cpu_texts = data
+    # batch_size = cpu_images.size(0)
+    # utils.loadData(image, cpu_images)
+    # t, l = converter.encode(cpu_texts)
+    # utils.loadData(text, t)
+    # utils.loadData(length, l)
+    #
+    # preds = crnn(image)
+    # preds_size = Variable(torch.IntTensor([preds.size(0)] * batch_size))
+    # cost = criterion(preds, text, preds_size, length) / batch_size
+    # crnn.zero_grad()
+    # cost.backward()
+    # optimizer.step()
     return batch_loss
 
 
 def detection_train():
-    criterion = eval.loss
     i = 0
     if config.on_cuda:
         logger.tee("Using CUDA device %s id %d" % (torch.cuda.get_device_name(torch.cuda.current_device()),
@@ -141,11 +204,11 @@ def detection_train():
     for epoch in range(config.epoch_num):
         epoch_now = train_loader.epoch
         while epoch_now == train_loader.epoch:
-            for p in kaisei.parameters():
+            for p in hokuto.parameters():
                 p.requires_grad = True
             epoch_now = train_loader.epoch
-            kaisei.train()
-            cost = train_batch(kaisei, criterion, optimizer)
+            hokuto.train()
+            cost = train_batch(hokuto, criterion, optimizer)
             loss_avg.add(cost)
             i += 1
 
@@ -155,7 +218,7 @@ def detection_train():
                 loss_avg.reset()
 
             if i % config.val_interval == 0:
-                val(kaisei, test_loader, criterion)
+                val(hokuto, test_loader, criterion)
 
             # checkpoint
             if i % config.ckpt_interval == 0:
@@ -163,7 +226,7 @@ def detection_train():
                     os.mkdir(config.expr_name)
                 except FileExistsError:
                     pass
-                torch.save(kaisei.state_dict(), '{0}/netKAISEI_{1}_{2}.pth'.format(config.expr_name, epoch, i))
+                torch.save(hokuto.state_dict(), '{0}/netHOKUTO_{1}_{2}.pth'.format(config.expr_name, epoch, i))
 
 
 if __name__ == "__main__":

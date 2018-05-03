@@ -4,11 +4,12 @@
 
 import numpy as np
 import torch.nn as nn
-import torch.nn.functional as nnfunc
+import torch.nn.functional as F
 import torch
 import torchvision as tv
 
 import config
+import config_e2e
 import models
 from models import BidirectionalLSTM
 from layers import *
@@ -36,10 +37,10 @@ class DetectionBranch(nn.Module):
         """
         x = self.conv3(x)
         # Sigmoid are used to limit the output to 0-1
-        score_map = nnfunc.sigmoid(self.conv1_1_0(x))
+        score_map = F.sigmoid(self.conv1_1_0(x))
         # Angle are limited to [-45, 45]; for vertical ones, the angle is 0
-        angle_map = (nnfunc.sigmoid(self.conv1_1_1(x)) - 0.5) * np.pi / 2
-        geo_map = nnfunc.sigmoid(self.conv1_4(x)) * config.text_scale
+        angle_map = (F.sigmoid(self.conv1_1_1(x)) - 0.5) * np.pi / 2
+        geo_map = F.sigmoid(self.conv1_4(x)) * config.text_scale
 
         geometry_map = torch.cat((geo_map, angle_map), dim=1)
 
@@ -52,7 +53,8 @@ class RecognitionBranch(nn.Module):
     We change the conv-bn-relu part to FOTS-like since we adopts shared features
     while using two BiLSTM like CRNN instead of one BiLSTM and one FC of FOTS.
     """
-    def __init__(self, img_h, nc, nclass, nh, n_rnn=2, leaky_relu=False):
+    def __init__(self, n_class, nh, n_channel=config_e2e.n_channel,
+                 img_h=config_e2e.input_height, leaky_relu=False):
         super().__init__()
         assert img_h % 16 == 0, 'imgH has to be a multiple of 16'
 
@@ -65,7 +67,7 @@ class RecognitionBranch(nn.Module):
         cnn = nn.Sequential()
 
         def conv_bn_relu(i, batch_normalization=True):
-            n_in = nc if i == 0 else nm[i - 1]
+            n_in = n_channel if i == 0 else nm[i - 1]
             n_out = nm[i]
             cnn.add_module('conv{0}'.format(i),
                            nn.Conv2d(n_in, n_out, ks[i], ss[i], ps[i]))
@@ -103,7 +105,7 @@ class RecognitionBranch(nn.Module):
         self.cnn = cnn
         self.rnn = nn.Sequential(
             BidirectionalLSTM(512, nh, nh),
-            BidirectionalLSTM(nh, nh, nclass))
+            BidirectionalLSTM(nh, nh, n_class))
 
     def forward(self, inp):
         # conv features
@@ -122,7 +124,7 @@ class RecognitionBranch(nn.Module):
 class Kaisei(nn.Module):
     """
     The complete KAISEI net.
-    TODO: Crop and augmentation; consider dropout since Kaisei seems to be over-fitting.
+    TODO: Consider dropout since Kaisei seems to be over-fitting.
     """
 
     def __init__(self):
@@ -146,8 +148,76 @@ class Kaisei(nn.Module):
         return score_map, geometry_map
 
 
-# class Hokuto(nn.Module):
-#     """
-#     TODO: The end-to-end framework
-#     """
-#     pass
+class Hokuto(nn.Module):
+    """
+    TODO: The end-to-end framework
+    """
+
+    def __init__(self, n_class, n_hidden_status):
+        super().__init__()
+        self.resnet = models.resnet50_block()
+        self.deconv = models.deconv_block()
+        self.detect = DetectionBranch()
+        self.recong = RecognitionBranch(n_class, n_hidden_status, n_channel=config_e2e.n_channel)
+
+    def forward(self, x):
+        """
+        :param x: output tensor from feature sharing block, expect channel_num to be 256
+        :return: total branch output
+        """
+        x = self.resnet(x)
+        residual_layers = self.resnet.residual_layers
+        x = self.deconv(x, residual_layers)
+        score_map, geometry_map = self.detect(x)
+        # Reset residual cache
+        self.resnet.residual_layers = []
+
+        return score_map, geometry_map
+
+    # The RoIAffine Operators
+    @staticmethod
+    def generate_affine_matrix(radian):  # , t_x, t_y): Seems we won't need t_x and t_y now.
+        """
+        Generate affine matrix for RoIAffine.
+        Angle notation: Degree measure.
+        TODO: It seems FOTS's RoIRotate is finer than ours, since it also deals with quad-to-rect problem.
+              Refer to the paper for detail.
+        Return a 1*2*3 tensor.
+        """
+        affine_m = np.zeros((2, 3))
+        radian = np.radians(radian)
+        affine_m[0][0] = np.math.cos(radian)
+        affine_m[0][1] = -np.math.sin(radian)
+        affine_m[1][0] = np.math.sin(radian)
+        affine_m[1][1] = np.math.cos(radian)
+        return torch.FloatTensor(affine_m[np.newaxis, ...])
+
+    @staticmethod
+    def crop_tensor(tensor, w_min, w_max, h_min, h_max):
+        """
+        Crop tensor/variable with index_select.
+        PyTorch Convention: nBatch * nChannel * nHeight * nWidth
+        """
+        # Crop the width-dim
+        crop = torch.index_select(tensor, 3, torch.LongTensor(list(range(w_min, w_max + 1))))
+        crop = torch.index_select(crop, 2, torch.LongTensor(list(range(h_min, h_max + 1))))
+        return crop
+
+    @staticmethod
+    def generate_flow_grid(theta, size):
+        """
+        Generate flow grid according to the affine matrix for RoIAffine.
+        Size convention: nBatch (1) * outHeight * outWeight * 2 (x, y), a torch.Size.
+        """
+        # assert len(size) == 4 and size[3] == 2 and size[1] == config.input_height
+        #  and size[2] % config.input_height == 0
+        # TODO: pad to longest width later; func to calc *size*
+        # assert len(theta) == size[0]
+        return F.affine_grid(theta, size)
+
+    @staticmethod
+    def apply_affine_grid(flow_grid, input_tensor):
+        """
+        Apply the affine grid.
+        """
+        return F.grid_sample(input_tensor, flow_grid)

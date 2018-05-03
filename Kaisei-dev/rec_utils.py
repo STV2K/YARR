@@ -92,61 +92,30 @@ class StrLabelConverter(object):
             return texts
 
 
-# class Averager(object):
-#     """
-#     Compute average for `torch.Variable` and `torch.Tensor`.
-#     Moved to eval.py.
-#     """
-#
-#     def __init__(self):
-#         self.reset()
-#
-#     def add(self, v):
-#         if isinstance(v, Variable):
-#             count = v.data.numel()
-#             v = v.data.sum()
-#         elif isinstance(v, torch.Tensor):
-#             count = v.numel()
-#             v = v.sum()
-#
-#         self.n_count += count
-#         self.sum += v
-#
-#     def reset(self):
-#         self.n_count = 0
-#         self.sum = 0
-#
-#     def val(self):
-#         res = 0
-#         if self.n_count != 0:
-#             res = self.sum / float(self.n_count)
-#         return res
-
-
-def oneHot(v, v_length, nc):
-    batchSize = v_length.size(0)
-    maxLength = v_length.max()
-    v_onehot = torch.FloatTensor(batchSize, maxLength, nc).fill_(0)
+def one_hot(v, v_length, nc):
+    batch_size = v_length.size(0)
+    max_length = v_length.max()
+    v_one_hot = torch.FloatTensor(batch_size, max_length, nc).fill_(0)
     acc = 0
-    for i in range(batchSize):
+    for i in range(batch_size):
         length = v_length[i]
         label = v[acc:acc + length].view(-1, 1).long()
-        v_onehot[i, :length].scatter_(1, label, 1.0)
+        v_one_hot[i, :length].scatter_(1, label, 1.0)
         acc += length
-    return v_onehot
+    return v_one_hot
 
 
-def loadData(v, data):
+def load_data(v, data):
     v.data.resize_(data.size()).copy_(data)
 
 
-def prettyPrint(v):
+def pretty_print(v):
     print('Size {0}, Type: {1}'.format(str(v.size()), v.data.type()))
     print('| Max: %f | Min: %f | Mean: %f' % (v.max().data[0], v.min().data[0],
                                               v.mean().data[0]))
 
 
-def assureRatio(img):
+def assure_ratio(img):
     """Ensure imgH <= imgW."""
     b, c, h, w = img.size()
     if h > w:

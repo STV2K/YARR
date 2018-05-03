@@ -50,38 +50,6 @@ def image_normalize(images, means=(112.80 / 255, 106.65 / 255, 101.02 / 255)):
     return torch.Tensor.sub(images, torch.Tensor(means).view(1, 3, 1, 1))
 
 
-# Tensor/Variable Transformation
-def crop_tensor(tensor, w_min, w_max, h_min, h_max):
-    """
-    Crop tensor/variable with index_select.
-    PyTorch Convention: nBatch * nChannel * nHeight * nWidth
-    """
-    # Crop the width-dim
-    crop = torch.index_select(tensor, 3, torch.LongTensor(list(range(w_min, w_max + 1))))
-    crop = torch.index_select(crop, 2, torch.LongTensor(list(range(h_min, h_max + 1))))
-    return crop
-
-
-def generate_flow_grid(theta, size):
-    """
-    Generate flow grid according to the affine matrix for RoIAffine.
-    Size convention: nBatch (1) * outHeight * outWeight * 2 (x, y), a torch.Size.
-    """
-    # assert len(size) == 4 and size[3] == 2 and size[1] == config.input_height
-    #  and size[2] % config.input_height == 0
-    # TODO: pad to longest width later; func to calc *size*
-    # assert len(theta) == size[0]
-    return F.affine_grid(theta, size)
-
-
-def apply_affine_grid(flow_grid, input_tensor):
-    """
-    Apply the affine grid.
-    F.grid_sample()
-    """
-    return F.grid_sample(input_tensor, flow_grid)
-
-
 # PIL Transformation
 def resize_image(image, max_side_len):
     """
@@ -761,23 +729,6 @@ def load_data(file_path=config.demo_data_path):
     return ret
 
 
-def generate_affine_matrix(radian):  # , t_x, t_y): Seems we won't need t_x and t_y now.
-    """
-    Generate affine matrix for RoIAffine.
-    Angle notation: Degree measure.
-    TODO: It seems FOTS's RoIRotate is finer than ours, since it also deals with quad-to-rect problem.
-          Refer to the paper for detail.
-    Return a 1*2*3 tensor.
-    """
-    affine_m = np.zeros((2, 3))
-    radian = np.radians(radian)
-    affine_m[0][0] = np.math.cos(radian)
-    affine_m[0][1] = -np.math.sin(radian)
-    affine_m[1][0] = np.math.sin(radian)
-    affine_m[1][1] = np.math.cos(radian)
-    return torch.FloatTensor(affine_m[np.newaxis, ...])
-
-
 # Visualizing
 def show_gray_colormap(array):
     plt.imshow(array, cmap="gray")
@@ -834,6 +785,14 @@ def quad2rect(quad):
 def rect2quad(rect):
     [(x0, y0), (x1, y1)] = rect
     return [(x0, y0), (x0, y1), (x1, y1), (x1, y0)]
+
+
+def load_alphabet_txt(filename, encoding="GB18030"):
+    alphabet = []
+    with open(filename, "r", encoding=encoding) as f:
+        for line in f:
+            alphabet.append(line.strip())
+    return alphabet
 
 
 def exchange_point_axis(p):
@@ -934,28 +893,30 @@ def twitch_one_channel(img, channel_idx, max_twitch):
 # PyTorch Data Warp-up
 # TODO_COMPROMISED: fix issue that default collate_fn cannot deal with various sized tensor, which requires turning
 #  into lists or to sample pictures for mini-batches in an aspect-ratio-respecting way
-# COMPROMISE: we chose to resize all stv2k images to (1120, 1120) during training.
-def collate_fn(batch):
-    # Note that batch is a list
-    batch = list(map(list, zip(*batch)))  # transpose list of list
-    out = None
-    # You should know that batch[0] is a fixed-size tensor since you're using your customized Dataset
-    # reshape batch[0] as (N, H, W)
-    # batch[1] contains tensors of different sizes; just let it be a list.
-    # If your num_workers in DataLoader is bigger than 0
-    #     numel = sum([x.numel() for x in batch[0]])
-    #     storage = batch[0][0].storage()._new_shared(numel)
-    #     out = batch[0][0].new(storage)
-    batch[0] = torch.stack(batch[0], 0, out=out)
-    return batch
+# COMPROMISE: we chose to resize all stv2k images to square resolution during training.
+# def collate_fn(batch):
+#     # Note that batch is a list
+#     batch = list(map(list, zip(*batch)))  # transpose list of list
+#     out = None
+#     # You should know that batch[0] is a fixed-size tensor since you're using your customized Dataset
+#     # reshape batch[0] as (N, H, W)
+#     # batch[1] contains tensors of different sizes; just let it be a list.
+#     # If your num_workers in DataLoader is bigger than 0
+#     #     numel = sum([x.numel() for x in batch[0]])
+#     #     storage = batch[0][0].storage()._new_shared(numel)
+#     #     out = batch[0][0].new(storage)
+#     batch[0] = torch.stack(batch[0], 0, out=out)
+#     return batch
 
 
 class STV2KDetDataset(Dataset):
 
-    def __init__(self, path=config.training_data_path_z440):
+    def __init__(self, path=config.training_data_path_z440, with_text=False, is_test_set=False):
         self.image_list = get_image_list(path)
         self.toTensor = transforms.ToTensor()
         self.data_path = path
+        self.is_test_set = is_test_set
+        self.with_text = with_text
 
     def __len__(self):
         return len(self.image_list)
@@ -978,8 +939,15 @@ class STV2KDetDataset(Dataset):
         valid_quad, valid_cont, valid_bool = check_and_validate_polys(label_quad, label_content,
                                                                       label_bool, img_ori_size)
         # Use float quads to generate maps
-        crop_img, crop_quad, crop_cont, crop_bool = random_crop(img, valid_quad, valid_cont, valid_bool)
-        color_twitch_crop_img = Image.fromarray(np_img_color_twitch(np.array(crop_img)))
+        if self.is_test_set:
+            crop_img, crop_quad, crop_cont, crop_bool = random_crop(img, valid_quad, valid_cont, valid_bool,
+                                                                    prob_bg=0.01, prob_partial=0.09)
+            color_twitch_crop_img = Image.fromarray(np_img_color_twitch(np.array(crop_img),
+                                                                        prob_1=0.4, prob_2=0.2, prob_3=0.10,
+                                                                        max_twitch=0.25))
+        else:
+            crop_img, crop_quad, crop_cont, crop_bool = random_crop(img, valid_quad, valid_cont, valid_bool)
+            color_twitch_crop_img = Image.fromarray(np_img_color_twitch(np.array(crop_img)))
         gen_img, resize_ratio = resize_image_fixed_square(color_twitch_crop_img)
         valid_quad_resized = np.array(crop_quad)
         if len(valid_quad_resized):
@@ -997,9 +965,9 @@ class STV2KDetDataset(Dataset):
 class DataProvider:
 
     def __init__(self, batch_size=8, is_cuda=False, num_workers=config.data_loader_worker_num,
-                 data_path=config.training_data_path_z440):
+                 data_path=config.training_data_path_z440, with_text=False, test_set=False):
         self.batch_size = batch_size
-        self.dataset = STV2KDetDataset(data_path)
+        self.dataset = STV2KDetDataset(data_path, test_set, with_text)
         self.is_cuda = is_cuda
         self.data_iter = None
         self.iteration = 0  # iteration num of current epoch
