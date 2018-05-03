@@ -1,5 +1,6 @@
 import os
 from PIL import Image
+from PIL import ImageDraw
 import sys
 import cv2
 import random
@@ -320,10 +321,11 @@ def generate_augmentation(b_images, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_
     for i in range(len(b_bbox_num)):
         polys = []
         for x1, y1, x2, y2, x3, y3, x4, y4 in zip(b_x1[i], b_x2[i], b_x3[i], b_x4[i], b_y1[i], b_y2[i], b_y3[i], b_y4[i]):
-            poly = [[x1, y1], [x2 y2], [x3, y3], [x4, y4]]
+            poly = [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
+            poly = np.array(poly)
             poly = sort_poly(poly)
             polys.append(poly)
-        b_image, b_polys = random_crop(b_images[i], polys)
+        b_image, b_polys = random_crop(Image.fromarray(np.uint8(b_images[i])), polys)
 
         b_image.save('./results/crop_%d.jpg' % i)
 
@@ -370,6 +372,7 @@ def random_crop(img, quads, prob_bg=0.05, prob_partial=0.79,
     img = img.copy()
     rand = np.random.random()
     if rand < prob_bg + prob_partial:
+        #print(img.size)
         imw, imh = img.size
         minw = int(imw * min_crop_ratio)
         minh = int(imh * min_crop_ratio)
@@ -393,7 +396,7 @@ def random_crop(img, quads, prob_bg=0.05, prob_partial=0.79,
             crop_img = img.copy().crop((x, y, w + x, h + y))
             crop_img.load()
             # print("Cropping bg ", (x, y, w + x, h + y))
-            return crop_img, [], [], []
+            return crop_img, []
         else:
             # crop partial, may be minor bug with the shapely judgements
             crop_update = True
@@ -465,10 +468,22 @@ def random_crop(img, quads, prob_bg=0.05, prob_partial=0.79,
         crop_img = img
         out_quad = quads
 
+    #print(crop_img.size)
     crop_w, crop_h = crop_img.size
-    out_quad = np.true_divide(out_quad, [crop_w, crop_h])
+    #out_quad = np.true_divide(out_quad, [crop_w, crop_h])
+    #print(out_quad)
+    if len(out_quad):
+        out_quad = np.array(out_quad)
+        out_quad[:, :, 0] /= crop_w
+        out_quad = np.array(out_quad)
+        out_quad[:, :, 1] /= crop_h
+    #print(out_quad)
     crop_img = crop_img.resize((img_width,img_height), Image.ANTIALIAS)
-return crop_img, out_quad
+    return crop_img, out_quad
+
+
+def quad2rect(quad):
+    return np.array([(min(quad[:, 0]), min(quad[:, 1])), (max(quad[:, 0]), max(quad[:, 1]))])
 
 
 def resize_image(image, size,
@@ -794,13 +809,19 @@ def run(output_dir, shuffling=False, name='icdar'):
 # IMAGE_WIDTH = 300
 
 # filenames = '/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord'
-stv2k_filenames = ['/media/data2/hcx_data/STV2KTF/STV2K_0000.tfrecord',
-                   '/media/data2/hcx_data/STV2KTF/STV2K_0001.tfrecord',
-                   '/media/data2/hcx_data/STV2KTF/STV2K_0002.tfrecord',
-                   '/media/data2/hcx_data/STV2KTF/STV2K_0003.tfrecord',
-                   '/media/data2/hcx_data/STV2KTF/STV2K_0004.tfrecord',
-                   '/media/data2/hcx_data/STV2KTF/STV2K_0005.tfrecord',
-                   '/media/data2/hcx_data/STV2KTF/STV2K_0006.tfrecord']
+stv2k_filenames = ['/media/data2/hcx_data/STV2KTF_New/STV2K_0000.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF_New/STV2K_0001.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF_New/STV2K_0002.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF_New/STV2K_0003.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF_New/STV2K_0004.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF_New/STV2K_0005.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF_New/STV2K_0006.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF_New/STV2K_0007.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF_New/STV2K_0008.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF_New/STV2K_0009.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF_New/STV2K_0010.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF_New/STV2K_0011.tfrecord',
+                   '/media/data2/hcx_data/STV2KTF_New/STV2K_0012.tfrecord']
 icdar_filenames = ['/media/data2/hcx_data/ICDARTF/icdar_0000.tfrecord',
                    '/media/data2/hcx_data/ICDARTF/icdar_0001.tfrecord',
                    '/media/data2/hcx_data/ICDARTF/icdar_0002.tfrecord',
@@ -811,7 +832,7 @@ icdar_filenames = ['/media/data2/hcx_data/ICDARTF/icdar_0000.tfrecord',
                    '/media/data2/hcx_data/ICDARTF/icdar_0007.tfrecord',
                    '/media/data2/hcx_data/ICDARTF/icdar_0008.tfrecord',
                    '/media/data2/hcx_data/ICDARTF/icdar_0009.tfrecord']
-train_filenames = icdar_filenames
+train_filenames = icdar_filenames + stv2k_filenames
 val_filenames = ['/media/data1/hcxiao/TFRecorders/STV2KTF/STV2K_0003.tfrecord']
 
 

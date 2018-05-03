@@ -10,7 +10,7 @@ from nets import STVNet
 
 tf.logging.set_verbosity(tf.logging.INFO)
 slim = tf.contrib.slim
-os.environ["CUDA_VISIBLE_DEVICES"] = "3" # config.FLAGS.gpu_list
+os.environ["CUDA_VISIBLE_DEVICES"] = "2" # config.FLAGS.gpu_list
 log_dir='/home/hcxiao/STVLogs/tensorLog/'
 model_dir='/home/hcxiao/Codes/YARR/detection/models/'
 #save_dir='/home/hcxiao/Codes/YARR/detection/models/angles/3/'
@@ -83,7 +83,7 @@ def train():
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
 
-            summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
+#            summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
             batch_size = config.FLAGS.batch_size
 
             step = 1
@@ -102,8 +102,8 @@ def train():
                 _, ploss, nloss, lcloss, aloss, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, angle_loss, merged],
                                                                 feed_dict={inputs: b_images, label: b_labels, bboxes: b_bboxes, angles:b_angles})
 
-                summary_writer.add_summary(summary_str, step)
-                summary_writer.flush()
+#                summary_writer.add_summary(summary_str, step)
+#                summary_writer.flush()
 
                 tf.logging.info('%s: Step %d: PositiveLoss = %.2f' % (datetime.now(), step, ploss))#sum_ploss / (batch_size - flag)))
                 tf.logging.info('%s: Step %d: NegtiveLoss = %.2f' % (datetime.now(), step, nloss))#sum_nloss / (batch_size - flag)))
@@ -114,7 +114,7 @@ def train():
                     saver.save(sess, save_dir + 'stvnet.ckpt', global_step=step)
                 step += 1
 
-#                while_flag = False
+                while_flag = False
 
 
             coord.request_stop()
