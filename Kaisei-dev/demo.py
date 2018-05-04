@@ -39,13 +39,19 @@ def detect(score_map, geo_map, timer, score_map_thresh=config.score_map_threshol
     :param box_thresh: threshold for boxes
     :param nms_thresh: threshold for nms
     :return:
+    Convention here: (b, h, w, c)
+    Our input convention: (b, c, w, h)
     """
-    # print(score_map, geo_map.shape)
+    # print(score_map.shape, geo_map.shape)
+    score_map = score_map.transpose((0, 3, 2, 1))
+    geo_map = geo_map.transpose((0, 3, 2, 1))
     if len(score_map.shape) == 4:
         score_map = score_map[0, :, :, 0]
         geo_map = geo_map[0, :, :, ]
-    # TODO-REDO: fatal problems here, score seems to be NOT CONVERGED
-    print(score_map, geo_map.shape)  # filter the score map
+    # print(score_map.shape, geo_map.shape)
+    # score_map = score_map[:, ::-1]
+    # geo_map = geo_map[:, :, ::-1]
+    # filter the score map
     xy_text = np.argwhere(score_map > score_map_thresh)
     # sort the text boxes via the y axis
     xy_text = xy_text[np.argsort(xy_text[:, 0])]
@@ -69,7 +75,7 @@ def detect(score_map, geo_map, timer, score_map_thresh=config.score_map_threshol
 
     # here we filter some low score boxes by the average score map, this is different from the original paper
     for i, box in enumerate(boxes):
-        mask = np.zeros_like(score_map, dtype=np.uint8)
+        mask = np.zeros_like(score_map, dtype=np.uint8).copy()
         cv2.fillPoly(mask, box[:8].reshape((-1, 4, 2)).astype(np.int32) // 4, 1)
         boxes[i, 8] = cv2.mean(score_map, mask)[0]
     boxes = boxes[boxes[:, 8] > box_thresh]
@@ -132,7 +138,7 @@ def detect_image(net_path, img_path):
                     # nbox[3, 0] = box[3, 1]
                     # nbox[3, 1] = box[3, 0]
 
-                    cv2.polylines(im[:, :, ::-1], [nbox.astype(np.int32).reshape((-1, 1, 2))], True,
+                    cv2.polylines(im[:, :, ::-1], [box.astype(np.int32).reshape((-1, 1, 2))], True,
                                   color=(0, 255, 255),
                                   thickness=2)
                     img_path = os.path.join(config.detect_output_dir, os.path.basename(im_fn))

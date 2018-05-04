@@ -98,8 +98,8 @@ def resize_image_fixed_square(image, fixed_len=config.fixed_len):
     return im, (ratio_w, ratio_h)
 
 
-def random_crop(img, quads, contents, bools, prob_bg=0.15, prob_partial=0.79,
-                top_left_point_ratio=0.75, min_crop_ratio=0.2):
+def random_crop(img, quads, contents, bools, prob_bg=0.05, prob_partial=0.55,
+                top_left_point_ratio=0.5, min_crop_ratio=0.3, aspect_ratio_range=(0.7, 1.3)):
     """
     Randomly cropping.
     :param img: An PIL Image obj.
@@ -111,6 +111,7 @@ def random_crop(img, quads, contents, bools, prob_bg=0.15, prob_partial=0.79,
     :param prob_partial: Probability to crop a partial out, otherwise don't crop.
     :param top_left_point_ratio: Which area top-left point of crop area will be generated into.
     :param min_crop_ratio: Minimal size ratio allowed for the cropped image.
+    :param aspect_ratio_range: As the var name suggests.
     :return: Cropped img, quads and contents.
     """
     assert top_left_point_ratio + min_crop_ratio < 1
@@ -123,7 +124,10 @@ def random_crop(img, quads, contents, bools, prob_bg=0.15, prob_partial=0.79,
         x = int(np.random.random() * top_left_point_ratio * imw)
         y = int(np.random.random() * top_left_point_ratio * imh)
         w = np.random.randint(minw, imw - x)
-        h = np.random.randint(minh, imh - y)
+        minh = max(int(aspect_ratio_range[0] * w), minh)
+        maxh = min(int(aspect_ratio_range[1] * w), imh - y)
+        h = np.random.randint(minh, maxh)
+        print(h, w, minh, maxh)
         boarder_left = boarder_top = 0
         boarder_right = imw
         boarder_bottom = imh
@@ -139,7 +143,7 @@ def random_crop(img, quads, contents, bools, prob_bg=0.15, prob_partial=0.79,
             del draw  # Not sure if this is necessary
             crop_img = img.copy().crop((x, y, w + x, h + y))
             crop_img.load()
-            # print("Cropping bg ", (x, y, w + x, h + y))
+            print("Cropping bg ", (x, y, w + x, h + y))
             return crop_img, [], [], []
         else:
             # crop partial, may be minor bug with the shapely judgements
@@ -203,7 +207,7 @@ def random_crop(img, quads, contents, bools, prob_bg=0.15, prob_partial=0.79,
                         # print("E shrink")
                     # else:  # Otherwise quad is in extinct, just discard
                         # print("Quad in extinct: ", content)
-            # print("Cropping partial ", (x, y, w + x, h + y))
+            print("Cropping partial ", (x, y, w + x, h + y))
             del draw
             crop_img = img.copy().crop((x, y, w + x, h + y))
             crop_img.load()

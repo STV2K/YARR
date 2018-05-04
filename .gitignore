@@ -1,6 +1,7 @@
 # Custom
 .idea/
 testcases/
+warp-ctc/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
