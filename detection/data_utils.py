@@ -330,7 +330,7 @@ def generate_augmentation(b_images, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_
         b_image = np_img_color_twitch(b_image)
 
         pic = Image.fromarray(np.uint8(b_image))
-        pic.save('./result/crop_twitch_%d.jpg' % i)
+        pic.save('./results/crop_twitch_%d.jpg' % i)
         #b_image.save('./results/crop_%d.jpg' % i)
 
         
@@ -463,7 +463,7 @@ def random_crop(img, quads, prob_bg=0.05, prob_partial=0.75,
             del draw
             crop_img = img.copy().crop((x, y, w + x, h + y))
             crop_img.load()
-            print("Cropping and Filling", (x, y, w + x, h + y))
+#            print("Cropping and Filling", (x, y, w + x, h + y))
             # Update quads
             if len(out_quad):
                 out_quad = np.array(out_quad)
@@ -471,7 +471,7 @@ def random_crop(img, quads, prob_bg=0.05, prob_partial=0.75,
                 out_quad[:, :, 1] -= y
     else:
         # Otherwise do no cropping, return the original image and annotations
-        print("No crop")
+#        print("No crop")
         crop_img = img
         out_quad = quads
 
@@ -507,6 +507,7 @@ def np_img_color_twitch(img, prob_1=0.6, prob_2=0.25, prob_3=0.10, max_twitch=0.
 
 
 def twitch_one_channel(img, channel_idx, max_twitch):
+    img.setflags(write=1)
     ch = np.random.choice(channel_idx)
     scale = (np.random.random() * 2 - 1) * max_twitch
     channel_idx.remove(ch)
