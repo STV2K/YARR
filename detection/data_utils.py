@@ -326,10 +326,14 @@ def generate_augmentation(b_images, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_
             poly = sort_poly(poly)
             polys.append(poly)
         b_image, b_polys = random_crop(Image.fromarray(np.uint8(b_images[i])), polys)
-
-        b_image.save('./results/crop_%d.jpg' % i)
-
         b_image = np.asarray(b_image)
+        b_image = np_img_color_twitch(b_image)
+
+        pic = Image.fromarray(np.uint8(b_image))
+        pic.save('./result/crop_twitch_%d.jpg' % i)
+        #b_image.save('./results/crop_%d.jpg' % i)
+
+        
         batch_images.append(b_image)
 
         bboxes, angles = turn_poly_into_bbox(b_polys)
@@ -479,6 +483,39 @@ def random_crop(img, quads, prob_bg=0.05, prob_partial=0.75,
         out_quad[:, :, 1] /= crop_h
     crop_img = crop_img.resize((img_width,img_height), Image.ANTIALIAS)
     return crop_img, out_quad
+
+def np_img_color_twitch(img, prob_1=0.6, prob_2=0.25, prob_3=0.10, max_twitch=0.38):
+    """
+    Twitch color of an image for augmentation on channel level.
+    :param img: Image as np.array with convention(w, h, c)
+    :param prob_1: Probability to twitch one channel
+    :param prob_2: Probability to twitch two channels
+    :param prob_3: Probability to twitch all channels
+    :param max_twitch: Maximum twitch scale allowed.
+    :return: Twitched image.
+    """
+    channel_idx = [0, 1, 2]
+    prob = np.random.random()
+    if prob < (prob_1 + prob_2 + prob_3):
+        twitch_one_channel(img, channel_idx, max_twitch)
+        if prob > prob_1:
+            twitch_one_channel(img, channel_idx, max_twitch)
+            if prob > (prob_1 + prob_2):
+                twitch_one_channel(img, channel_idx, max_twitch)
+
+    return np.clip(img, 0, 255)
+
+
+def twitch_one_channel(img, channel_idx, max_twitch):
+    ch = np.random.choice(channel_idx)
+    scale = (np.random.random() * 2 - 1) * max_twitch
+    channel_idx.remove(ch)
+    if scale > 0:
+        # twitch with different methods to prevent out-of-board
+        img[:, :, ch] = img[:, :, ch] + scale * (255 - img[:, :, ch])
+    else:
+        img[:, :, ch] = img[:, :, ch] * (scale + 1)
+# print("Twitch ch ", ch, " with scale ", scale)
 
 
 def quad2rect(quad):
