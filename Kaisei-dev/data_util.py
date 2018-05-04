@@ -124,6 +124,7 @@ def random_crop(img, quads, contents, bools, prob_bg=0.05, prob_partial=0.55,
         x = int(np.random.random() * top_left_point_ratio * imw)
         y = int(np.random.random() * top_left_point_ratio * imh)
         w = np.random.randint(minw, imw - x)
+        # TODO: needs further optimize on choosing h, w
         minh = max(int(aspect_ratio_range[0] * w), minh)
         maxh = min(int(aspect_ratio_range[1] * w), imh - y)
         min_h = min(minh, maxh)
@@ -132,7 +133,7 @@ def random_crop(img, quads, contents, bools, prob_bg=0.05, prob_partial=0.55,
             h = max_h
         else:
             h = np.random.randint(min_h, max_h)
-        # print(h, w, minh, maxh)
+        # print(x, y, h, w, minh, maxh)
         boarder_left = boarder_top = 0
         boarder_right = imw
         boarder_bottom = imh

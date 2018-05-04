@@ -160,11 +160,14 @@ class Hokuto(nn.Module):
         self.detect = DetectionBranch()
         self.recong = RecognitionBranch(n_class, n_hidden_status, n_channel=config_e2e.n_channel)
 
-    def forward(self, x):
+    def forward(self, x, quads, contents):
         """
         :param x: output tensor from feature sharing block, expect channel_num to be 256
+        :param quads: valid quads in the gt
+        :param contents: valid contents in the gt
         :return: total branch output
         """
+        rec_out = None
         x = self.resnet(x)
         residual_layers = self.resnet.residual_layers
         x = self.deconv(x, residual_layers)
@@ -172,7 +175,17 @@ class Hokuto(nn.Module):
         # Reset residual cache
         self.resnet.residual_layers = []
 
-        return score_map, geometry_map
+        # Choose quads in train_batch
+        for q in quads:
+            feature = self.crop_tensor(x, min(q[:, 0]), max(q[:, 0]), min(q[:, 1]), max(q[:, 1]))
+            # Todo: store angle from data_util
+            aff_matrix = self.generate_affine_matrix(radian)
+            self.generate_flow_grid(aff_matrix, torch.Size((config_e2e.input_height, ...)))
+            # TODO: how to determine w here?
+            # Todo: Then pad to longest width
+            # Todo: stack feature together
+        rec_out = self.recong(features)
+        return score_map, geometry_map, rec_out
 
     # The RoIAffine Operators
     @staticmethod
@@ -181,7 +194,7 @@ class Hokuto(nn.Module):
         Generate affine matrix for RoIAffine.
         Angle notation: Degree measure.
         TODO: It seems FOTS's RoIRotate is finer than ours, since it also deals with quad-to-rect problem.
-              Refer to the paper for detail.
+              Refer to their paper for detail.
         Return a 1*2*3 tensor.
         """
         affine_m = np.zeros((2, 3))

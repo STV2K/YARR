@@ -42,7 +42,7 @@ detect_output_dir = "results_e2e/"
 # Recognition Branch Settings
 input_height = 32
 n_channel = 128
-max_batch = 24
+max_rec_batch = 24
 num_hidden_state = 256
 replace_dict = (("∧", "ā", "×", "★"),
                 ("Λ", "a", "x", "*"))

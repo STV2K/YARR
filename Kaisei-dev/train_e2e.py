@@ -194,7 +194,7 @@ def train_batch(net, criterion, optimizer):
     return batch_loss
 
 
-def detection_train():
+def hokuto_train():
     i = 0
     if config.on_cuda:
         logger.tee("Using CUDA device %s id %d" % (torch.cuda.get_device_name(torch.cuda.current_device()),
@@ -230,4 +230,4 @@ def detection_train():
 
 
 if __name__ == "__main__":
-    detection_train()
+    hokuto_train()
