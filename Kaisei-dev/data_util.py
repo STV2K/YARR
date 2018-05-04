@@ -126,8 +126,13 @@ def random_crop(img, quads, contents, bools, prob_bg=0.05, prob_partial=0.55,
         w = np.random.randint(minw, imw - x)
         minh = max(int(aspect_ratio_range[0] * w), minh)
         maxh = min(int(aspect_ratio_range[1] * w), imh - y)
-        h = np.random.randint(minh, maxh)
-        print(h, w, minh, maxh)
+        min_h = min(minh, maxh)
+        max_h = max(minh, maxh)
+        if min_h >= max_h:
+            h = max_h
+        else:
+            h = np.random.randint(min_h, max_h)
+        # print(h, w, minh, maxh)
         boarder_left = boarder_top = 0
         boarder_right = imw
         boarder_bottom = imh
@@ -143,7 +148,7 @@ def random_crop(img, quads, contents, bools, prob_bg=0.05, prob_partial=0.55,
             del draw  # Not sure if this is necessary
             crop_img = img.copy().crop((x, y, w + x, h + y))
             crop_img.load()
-            print("Cropping bg ", (x, y, w + x, h + y))
+            # print("Cropping bg ", (x, y, w + x, h + y))
             return crop_img, [], [], []
         else:
             # crop partial, may be minor bug with the shapely judgements
@@ -207,7 +212,7 @@ def random_crop(img, quads, contents, bools, prob_bg=0.05, prob_partial=0.55,
                         # print("E shrink")
                     # else:  # Otherwise quad is in extinct, just discard
                         # print("Quad in extinct: ", content)
-            print("Cropping partial ", (x, y, w + x, h + y))
+            # print("Cropping partial ", (x, y, w + x, h + y))
             del draw
             crop_img = img.copy().crop((x, y, w + x, h + y))
             crop_img.load()
