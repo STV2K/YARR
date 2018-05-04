@@ -320,7 +320,7 @@ def generate_augmentation(b_images, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_
 
     for i in range(len(b_bbox_num)):
         polys = []
-        for x1, y1, x2, y2, x3, y3, x4, y4 in zip(b_x1[i], b_x2[i], b_x3[i], b_x4[i], b_y1[i], b_y2[i], b_y3[i], b_y4[i]):
+        for x1, x2, x3, x4, y1, y2, y3, y4 in zip(b_x1[i], b_x2[i], b_x3[i], b_x4[i], b_y1[i], b_y2[i], b_y3[i], b_y4[i]):
             poly = [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
             poly = np.array(poly)
             poly = sort_poly(poly)
@@ -351,9 +351,7 @@ def generate_augmentation(b_images, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_
     return batch_images, batch_labels, batch_bboxes, batch_angles
 
 
-
-
-def random_crop(img, quads, prob_bg=0.05, prob_partial=0.79,
+def random_crop(img, quads, prob_bg=0.05, prob_partial=0.75,
                 top_left_point_ratio=0.75, min_crop_ratio=0.2):
     """
     Randomly cropping.
@@ -379,7 +377,9 @@ def random_crop(img, quads, prob_bg=0.05, prob_partial=0.79,
         x = int(np.random.random() * top_left_point_ratio * imw)
         y = int(np.random.random() * top_left_point_ratio * imh)
         w = np.random.randint(minw, imw - x)
-        h = np.random.randint(minh, imh - y)
+        #h = np.random.randint(minh, imh - y)
+        h = w if w < imh - y else imh - y
+#        print(w, h)
         boarder_left = boarder_top = 0
         boarder_right = imw
         boarder_bottom = imh
@@ -395,7 +395,9 @@ def random_crop(img, quads, prob_bg=0.05, prob_partial=0.79,
             del draw  # Not sure if this is necessary
             crop_img = img.copy().crop((x, y, w + x, h + y))
             crop_img.load()
-            # print("Cropping bg ", (x, y, w + x, h + y))
+
+#            print("Cropping bg ", (x, y, w + x, h + y))
+            crop_img = crop_img.resize((img_width,img_height), Image.ANTIALIAS)
             return crop_img, []
         else:
             # crop partial, may be minor bug with the shapely judgements
@@ -457,6 +459,7 @@ def random_crop(img, quads, prob_bg=0.05, prob_partial=0.79,
             del draw
             crop_img = img.copy().crop((x, y, w + x, h + y))
             crop_img.load()
+            print("Cropping and Filling", (x, y, w + x, h + y))
             # Update quads
             if len(out_quad):
                 out_quad = np.array(out_quad)
@@ -464,20 +467,16 @@ def random_crop(img, quads, prob_bg=0.05, prob_partial=0.79,
                 out_quad[:, :, 1] -= y
     else:
         # Otherwise do no cropping, return the original image and annotations
-        # print("No crop")
+        print("No crop")
         crop_img = img
         out_quad = quads
 
-    #print(crop_img.size)
     crop_w, crop_h = crop_img.size
-    #out_quad = np.true_divide(out_quad, [crop_w, crop_h])
-    #print(out_quad)
     if len(out_quad):
         out_quad = np.array(out_quad)
         out_quad[:, :, 0] /= crop_w
         out_quad = np.array(out_quad)
         out_quad[:, :, 1] /= crop_h
-    #print(out_quad)
     crop_img = crop_img.resize((img_width,img_height), Image.ANTIALIAS)
     return crop_img, out_quad
 
