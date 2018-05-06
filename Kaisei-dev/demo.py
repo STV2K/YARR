@@ -40,7 +40,8 @@ def detect(score_map, geo_map, timer, score_map_thresh=config.score_map_threshol
     :param nms_thresh: threshold for nms
     :return:
     Convention here: (b, h, w, c)
-    Our input convention: (b, c, w, h)
+    Our input convention: (b, c, h, w)
+    !!! Torchvision may have transposed once when trans tensors to np, see l100-101 !!!
     """
     # print(score_map.shape, geo_map.shape)
     score_map = score_map.transpose((0, 2, 3, 1))
