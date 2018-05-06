@@ -24,9 +24,9 @@ class DetectionBranch(nn.Module):
         super().__init__()
         self.conv3 = nn.Conv2d(128, 64, kernel_size=1, bias=False)
         self.conv1_1_0 = nn.Conv2d(64, 1, kernel_size=1, stride=1,
-                                 padding=0, bias=False)
+                                   padding=0, bias=False)
         self.conv1_1_1 = nn.Conv2d(64, 1, kernel_size=1, stride=1,
-                                 padding=0, bias=False)
+                                   padding=0, bias=False)
         self.conv1_4 = nn.Conv2d(64, 4, kernel_size=1, stride=1,
                                  padding=0, bias=False)
 

@@ -43,8 +43,8 @@ def detect(score_map, geo_map, timer, score_map_thresh=config.score_map_threshol
     Our input convention: (b, c, w, h)
     """
     # print(score_map.shape, geo_map.shape)
-    score_map = score_map.transpose((0, 3, 2, 1))
-    geo_map = geo_map.transpose((0, 3, 2, 1))
+    score_map = score_map.transpose((0, 2, 3, 1))
+    geo_map = geo_map.transpose((0, 2, 3, 1))
     if len(score_map.shape) == 4:
         score_map = score_map[0, :, :, 0]
         geo_map = geo_map[0, :, :, ]

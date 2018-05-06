@@ -44,8 +44,8 @@ input_height = 32
 n_channel = 128
 max_rec_batch = 24
 num_hidden_state = 256
-replace_dict = (("∧", "ā", "×", "★"),
-                ("Λ", "a", "x", "*"))
+replace_table = (("∧", "ā", "×", "★"),
+                 ("Λ", "a", "x", "*"))
 
 
 # GPU Training Settings
