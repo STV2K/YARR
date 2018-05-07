@@ -99,7 +99,6 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
     for i in range(max_iter):
         data = data_loader.next()
         img_batch, score_maps, geo_maps, training_masks = data
-        # img_batch = data_util.image_normalize(img_batch, config.STV2K_train_image_channel_means)
         img_batch = Variable(img_batch)
         score_maps = Variable(score_maps)
         geo_maps = Variable(geo_maps)

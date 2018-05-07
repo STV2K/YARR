@@ -189,7 +189,7 @@ class Hokuto(nn.Module):
 
     # The RoIAffine Operators
     @staticmethod
-    def generate_affine_matrix(radian):  # , t_x, t_y): Seems we won't need t_x and t_y now.
+    def generate_affine_matrix(degree):  # , t_x, t_y): Seems we won't need t_x and t_y now.
         """
         Generate affine matrix for RoIAffine.
         Angle notation: Degree measure.
@@ -198,7 +198,7 @@ class Hokuto(nn.Module):
         Return a 1*2*3 tensor.
         """
         affine_m = np.zeros((2, 3))
-        radian = np.radians(radian)
+        radian = np.radians(degree)
         affine_m[0][0] = np.math.cos(radian)
         affine_m[0][1] = -np.math.sin(radian)
         affine_m[1][0] = np.math.sin(radian)
