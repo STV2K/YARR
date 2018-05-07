@@ -8,11 +8,11 @@ tf.app.flags.DEFINE_string('gpu_list', '1',
                            'the list of gpu to use')
 tf.app.flags.DEFINE_string('ckpt_path', '', 'the checkpoint file to restore')
 tf.app.flags.DEFINE_integer('text_scale', 512, '')
-tf.app.flags.DEFINE_integer('batch_size', 4, '')
-tf.app.flags.DEFINE_integer('input_size_width', 300, '')
-tf.app.flags.DEFINE_integer('input_size_height', 300, '')
+tf.app.flags.DEFINE_integer('batch_size', 8, '')
+tf.app.flags.DEFINE_integer('input_size_width', 512, '')
+tf.app.flags.DEFINE_integer('input_size_height', 512, '')
 tf.app.flags.DEFINE_float('weight_decay', 0.00004, 'The weight decay on the model weights.')
-tf.app.flags.DEFINE_float('learning_rate', 0.01, '')  # 0.0005
+tf.app.flags.DEFINE_float('learning_rate', 0.005, '')  # 0.0005
 tf.app.flags.DEFINE_float('select_threshold', 0.01, 'Selection threshold.')
 tf.app.flags.DEFINE_integer('select_top_k', 400, 'Select top-k detected bounding boxes.')
 tf.app.flags.DEFINE_integer('keep_top_k', 200, 'Keep top-k detected objects.')

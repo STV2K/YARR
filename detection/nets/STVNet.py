@@ -923,7 +923,7 @@ def ssd_losses(logits, localisations, pre_angles,
         val, idxes = tf.nn.top_k(-nvalues_flat, k=n_neg)   # find the negtive boxes which have the highest score, val < 0
         max_hard_pred = -val[-1]    # find the one which has the largest score in negtive boxes
         # Final negative mask.
-        nmask = tf.logical_and(nmask, nvalues < max_hard_pred)  # find the negtive boxes we need(follow the ratio)
+        nmask = tf.logical_and(nmask, nvalues <= max_hard_pred)  # find the negtive boxes we need(follow the ratio)
         fnmask = tf.cast(nmask, dtype)
 
         batch_size = tf.cast(batch_size, tf.float32)

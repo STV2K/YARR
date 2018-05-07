@@ -11,12 +11,12 @@ from nets import STVNet
 from PIL import Image
 import matplotlib.pyplot as plt
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_test/'
 ICDAR_Path='/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_test_images/'
-img_name = 'img_82.jpg' #'STV2K_ts_0041.jpg' #'img_243.jpg'
-PATH = ICDAR_Path
+img_name = 'STV2K_ts_0683.jpg' #'img_243.jpg'
+PATH = STV2K_Path
 
 test_all_path = ICDAR_Path
 generate_pic_path = './results/icdar/angles/'
@@ -121,7 +121,7 @@ def test(img_name):
             # fig = plt.figure(figsize=(12, 12))
             # plt.imshow(img)
             result_img = Image.fromarray(np.uint8(img))
-            result_img.save('results/result-angle-v3-' + str(config.FLAGS.input_size_width) + '-' + ckpt_path.split('-')[-1] + '-' + img_name)
+            result_img.save('results/angles/v5-' + str(config.FLAGS.input_size_width) + '-' + ckpt_path.split('-')[-1] + '-' + img_name)
 
 
 def test_all(dir_path):
@@ -268,7 +268,7 @@ def bboxes_draw_on_img(img, scores, bboxes, angles, threshold, color, thickness=
 
 
 if __name__ == '__main__':
-#    test(img_name)
-    test_all(test_all_path)
+    test(img_name)
+#    test_all(test_all_path)
     
 

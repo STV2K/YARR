@@ -10,11 +10,11 @@ from nets import STVNet
 
 tf.logging.set_verbosity(tf.logging.INFO)
 slim = tf.contrib.slim
-os.environ["CUDA_VISIBLE_DEVICES"] = "2" # config.FLAGS.gpu_list
-log_dir='/home/hcxiao/STVLogs/tensorLog/'
+os.environ["CUDA_VISIBLE_DEVICES"] = "3" # config.FLAGS.gpu_list
 model_dir='/home/hcxiao/Codes/YARR/detection/models/'
 #save_dir='/home/hcxiao/Codes/YARR/detection/models/angles/3/'
-save_dir = '/media/data2/hcx_data/det_models/angles/4/'
+save_dir = '/media/data2/hcx_data/det_models/angles/6/'
+log_dir = save_dir
 model_name='VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt' # .data-00000-of-00001'
 
 img_width = config.FLAGS.input_size_width
@@ -45,13 +45,13 @@ def train():
                                                                       detection_net.params.img_shape)
 
         pos_loss, neg_loss, loc_loss, regular_loss, angle_loss= STVNet.ssd_losses(logits, localisations, pre_angles, gclasses, glocal, gscores, gangles)
-        total_loss = pos_loss + neg_loss + loc_loss + regular_loss + 10.0 * angle_loss
+        total_loss = pos_loss + neg_loss + loc_loss + regular_loss + 5.0 * angle_loss
 
         global_step = tf.Variable(0, name='global_step', trainable=False)
         initial_learning_rate = config.FLAGS.learning_rate
         learning_rate = tf.train.exponential_decay(initial_learning_rate,
                                                    global_step=global_step,
-                                                   decay_steps=304,
+                                                   decay_steps=601,
                                                    decay_rate=0.94,
                                                    staircase=True,
                                                    name='exponential_decay_learning_rate')
@@ -83,7 +83,7 @@ def train():
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
 
-#            summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
+            summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
             batch_size = config.FLAGS.batch_size
 
             step = 1
@@ -102,19 +102,19 @@ def train():
                 _, ploss, nloss, lcloss, aloss, summary_str = sess.run([train_op, pos_loss, neg_loss, loc_loss, angle_loss, merged],
                                                                 feed_dict={inputs: b_images, label: b_labels, bboxes: b_bboxes, angles:b_angles})
 
-#                summary_writer.add_summary(summary_str, step)
-#                summary_writer.flush()
+                summary_writer.add_summary(summary_str, step)
+                summary_writer.flush()
 
                 tf.logging.info('%s: Step %d: PositiveLoss = %.2f' % (datetime.now(), step, ploss))#sum_ploss / (batch_size - flag)))
                 tf.logging.info('%s: Step %d: NegtiveLoss = %.2f' % (datetime.now(), step, nloss))#sum_nloss / (batch_size - flag)))
                 tf.logging.info('%s: Step %d: LocalizationLoss = %.2f' % (datetime.now(), step, lcloss))#sum_lcloss / (batch_size - flag)))
-                tf.logging.info('%s: Step %d: LocalizationAngleLoss = %.2f' % (datetime.now(), step, aloss * 10.0))
+                tf.logging.info('%s: Step %d: LocalizationAngleLoss = %.2f\n' % (datetime.now(), step, aloss * 5.0))
 
-                if step % 300 == 0:
+                if step % 500 == 0:
                     saver.save(sess, save_dir + 'stvnet.ckpt', global_step=step)
                 step += 1
 
-                while_flag = False
+#                while_flag = False
 
 
             coord.request_stop()

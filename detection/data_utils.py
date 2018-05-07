@@ -329,9 +329,8 @@ def generate_augmentation(b_images, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_
         b_image = np.asarray(b_image)
         b_image = np_img_color_twitch(b_image)
 
-        pic = Image.fromarray(np.uint8(b_image))
-        pic.save('./results/crop_twitch_%d.jpg' % i)
-        #b_image.save('./results/crop_%d.jpg' % i)
+#        pic = Image.fromarray(np.uint8(b_image))
+#        pic.save('./results/crop_twitch_%d.jpg' % i)
 
         
         batch_images.append(b_image)
@@ -355,8 +354,8 @@ def generate_augmentation(b_images, b_x1, b_x2, b_x3, b_x4, b_y1, b_y2, b_y3, b_
     return batch_images, batch_labels, batch_bboxes, batch_angles
 
 
-def random_crop(img, quads, prob_bg=0.05, prob_partial=0.75,
-                top_left_point_ratio=0.75, min_crop_ratio=0.2):
+def random_crop(img, quads, prob_bg=0.0, prob_partial=0.5,
+                top_left_point_ratio=0.5, min_crop_ratio=0.3):
     """
     Randomly cropping.
     :param img: An PIL Image obj.
