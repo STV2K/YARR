@@ -115,11 +115,11 @@ def detect_image(net_path, img_path):
         # save to file
         with open("results_det/" + im_fn + "_score.pcl", "wb") as pf:
             pickle.dump([score, geo], pf)
-        if boxes is not None:
-            res_file = os.path.join(config.detect_output_dir,
-                                    '{}.txt'.format(
-                                        os.path.basename(im_fn).split('.')[0]))
-            with open(res_file, 'w') as f:
+
+        res_file = os.path.join(config.detect_output_dir,
+                                '{}.txt'.format(os.path.basename(im_fn).split('.')[0]))
+        with open(res_file, 'w') as f:
+            if boxes is not None:
                 for box in boxes:
                     # to avoid submitting errors
                     box = du.sort_poly_points(box.astype(np.int32))
@@ -130,10 +130,9 @@ def detect_image(net_path, img_path):
                     ))
 
                     cv2.polylines(im[:, :, ::-1], [box.astype(np.int32).reshape((-1, 1, 2))], True,
-                                  color=(0, 255, 255),
-                                  thickness=2)
-                    img_path = os.path.join(config.detect_output_dir, os.path.basename(im_fn))
-                    cv2.imwrite(img_path, im[:, :, ::-1])
+                                  color=(0, 255, 255), thickness=2)
+                img_path = os.path.join(config.detect_output_dir, os.path.basename(im_fn))
+                cv2.imwrite(img_path, im[:, :, ::-1])
 
 
 def load_net(net_path):
