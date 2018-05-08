@@ -647,6 +647,9 @@ def generate_rbox(im_size, polys, tag_bools, tag_content, img_name=""):
     geo_map = np.zeros((5, h, w), dtype=np.float32)
     # mask used during training to ignore some hard areas
     training_mask = np.ones((h, w), dtype=np.uint8)
+    rboxes = []
+    angles = []
+
     for poly_idx, poly_tag in enumerate(zip(polys, tag_bools, tag_content)):
         poly = poly_tag[0]
         tag = poly_tag[1]
@@ -763,6 +766,8 @@ def generate_rbox(im_size, polys, tag_bools, tag_content, img_name=""):
 
         rectangle = rectangle_from_parallelogram(parallelogram)
         rectangle, rotate_angle = sort_rectangle(rectangle)
+        rboxes.append(rectangle)
+        angles.append(rotate_angle)
 
         p0_rect, p1_rect, p2_rect, p3_rect = rectangle
         # Ugly, but must exchange point axis since we use different conventions of (w, h) rather than (h, w) in EAST
@@ -782,7 +787,7 @@ def generate_rbox(im_size, polys, tag_bools, tag_content, img_name=""):
             geo_map[3, y, x] = point_dist_to_line(p3_rect_ex, p0_rect_ex, point)
             # angle
             geo_map[4, y, x] = rotate_angle
-    return score_map[np.newaxis, ...], geo_map, training_mask[np.newaxis, ...]
+    return score_map[np.newaxis, ...], geo_map, training_mask[np.newaxis, ...], angles
 
 
 # Dataset helpers
@@ -932,6 +937,18 @@ def load_alphabet_txt(filename, encoding="GB18030"):
 
 def exchange_point_axis(p):
     return np.array([p[1], p[0]])
+
+
+def filter_groundtruth_text(text, ignore, replace_table=config.replace_table):
+    filtered = ''
+    text = text.replace('\\', '')
+    for c in text:
+        if c in ignore or c.isspace():
+            continue
+        elif c in replace_table[0]:
+            c = replace_table[1][replace_table[0].index(c)]
+        filtered += c
+    return  filtered
 
 
 def alphabet_gen(paths):
@@ -1088,13 +1105,18 @@ class STV2KDetDataset(Dataset):
         if len(valid_quad_resized):
             valid_quad_resized[:, :, 0] *= resize_ratio[0]
             valid_quad_resized[:, :, 1] *= resize_ratio[1]
-        score_map, geo_map, training_mask = generate_rbox(gen_img.size, valid_quad_resized,
+        score_map, geo_map, training_mask, angles = generate_rbox(gen_img.size, valid_quad_resized,
                                                           valid_bool, valid_cont, img_path)
         # return img, valid_quad, valid_cont, score_map, geo_map, training_mask
         # Downsample the groundtruth to match the output size
         # print("Finishing img:", img_path)
-        return self.toTensor(gen_img), torch.FloatTensor(score_map[::, ::4, ::4]), \
-            torch.FloatTensor(geo_map[::, ::4, ::4]), torch.FloatTensor(training_mask[::, ::4, ::4])
+        if with_text:
+            return self.toTensor(gen_img), torch.FloatTensor(score_map[::, ::4, ::4]), \
+                torch.FloatTensor(geo_map[::, ::4, ::4]), torch.FloatTensor(training_mask[::, ::4, ::4]), \
+                valid_quad_resized, angles, crop_cont
+        else:
+            return self.toTensor(gen_img), torch.FloatTensor(score_map[::, ::4, ::4]), \
+                   torch.FloatTensor(geo_map[::, ::4, ::4]), torch.FloatTensor(training_mask[::, ::4, ::4])
 
 
 class DataProvider:

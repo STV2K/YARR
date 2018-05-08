@@ -61,3 +61,7 @@ adam = False
 beta1 = 0.5
 adadelta = False
 rmsprop = True  # Default optimizer
+
+# Recognition
+replace_table = (("∧", "ā", "×", "★"),
+                 ("Λ", "a", "x", "*"))

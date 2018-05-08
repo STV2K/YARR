@@ -40,7 +40,8 @@ nms_threshold = 0.2
 detect_output_dir = "results_e2e/"
 
 # Recognition Branch Settings
-input_height = 32
+input_height = 8
+input_max_width = 96
 n_channel = 128
 max_rec_batch = 24
 num_hidden_state = 256

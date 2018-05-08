@@ -160,10 +160,10 @@ class Hokuto(nn.Module):
         self.detect = DetectionBranch()
         self.recong = RecognitionBranch(n_class, n_hidden_status, n_channel=config_e2e.n_channel)
 
-    def forward(self, x, quads, contents):
+    def forward(self, x, quads, angles, contents, indexes):
         """
-        :param x: output tensor from feature sharing block, expect channel_num to be 256
-        :param quads: valid quads in the gt
+        :param x: output tensor from feature sharing block, expect channel_num to be 256. Batch * Channel * Height * Width
+        :param quads: valid quads in the gt. Max_rec_batch * 4 * 2
         :param contents: valid contents in the gt
         :return: total branch output
         """
@@ -176,29 +176,45 @@ class Hokuto(nn.Module):
         self.resnet.residual_layers = []
 
         # Choose quads in train_batch
-        for q in quads:
-            feature = self.crop_tensor(x, min(q[:, 0]), max(q[:, 0]), min(q[:, 1]), max(q[:, 1]))
-            # Todo: store angle from data_util
+        #for q in quads:
+        features = []
+        for q, radian, index in zip(quads, angles, indexes):
+            feature = self.crop_tensor(x[index], min(q[:, 0]), max(q[:, 0]), min(q[:, 1]), max(q[:, 1]))
+            feature_channel, feature_height, feature_width = feature.shape
+            aff_width = feature_width * (config_e2e.input_height / feature_height)
+
+            zero_pad_flag = True
+            if aff_width > config_e2e.input_max_width:
+                aff_width = config_e2e.input_max_width
+                zero_pad_flag = False
+
+            # store angle from data_util
             aff_matrix = self.generate_affine_matrix(radian)
-            self.generate_flow_grid(aff_matrix, torch.Size((config_e2e.input_height, ...)))
-            # TODO: how to determine w here?
-            # Todo: Then pad to longest width
-            # Todo: stack feature together
+            aff_flow_grid = F.affine_grid(aff_matrix, torch.Size((feature_channel, config_e2e.input_height, aff_width)))
+            feature = F.grid_sample(feature, aff_flow_grid)
+            # how to determine w here?  --define in config_e2e
+            # Then pad to longest width
+            if zero_pad_flag:
+                zeropad = nn.ZeroPad2d((0, config_e2e.input_max_width - aff_width, 0, 0))
+                feature = zeropad(feature)
+            features.append(feature)
+        # stack feature together
+        features = torch.stack(features)
         rec_out = self.recong(features)
         return score_map, geometry_map, rec_out
 
     # The RoIAffine Operators
     @staticmethod
-    def generate_affine_matrix(degree):  # , t_x, t_y): Seems we won't need t_x and t_y now.
+    def generate_affine_matrix(radian):  # , t_x, t_y): Seems we won't need t_x and t_y now.
         """
         Generate affine matrix for RoIAffine.
-        Angle notation: Degree measure.
+        Angle notation: Radian measure.
         TODO: It seems FOTS's RoIRotate is finer than ours, since it also deals with quad-to-rect problem.
               Refer to their paper for detail.
         Return a 1*2*3 tensor.
         """
         affine_m = np.zeros((2, 3))
-        radian = np.radians(degree)
+        #radian = np.radians(degree)
         affine_m[0][0] = np.math.cos(radian)
         affine_m[0][1] = -np.math.sin(radian)
         affine_m[1][0] = np.math.sin(radian)
@@ -212,8 +228,8 @@ class Hokuto(nn.Module):
         PyTorch Convention: nBatch * nChannel * nHeight * nWidth
         """
         # Crop the width-dim
-        crop = torch.index_select(tensor, 3, torch.LongTensor(list(range(w_min, w_max + 1))))
-        crop = torch.index_select(crop, 2, torch.LongTensor(list(range(h_min, h_max + 1))))
+        crop = torch.index_select(tensor, 2, torch.LongTensor(list(range(w_min, w_max + 1))))
+        crop = torch.index_select(crop, 1, torch.LongTensor(list(range(h_min, h_max + 1))))
         return crop
 
     @staticmethod
