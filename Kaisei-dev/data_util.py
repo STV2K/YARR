@@ -1110,7 +1110,7 @@ class STV2KDetDataset(Dataset):
         # return img, valid_quad, valid_cont, score_map, geo_map, training_mask
         # Downsample the groundtruth to match the output size
         # print("Finishing img:", img_path)
-        if with_text:
+        if self.with_text:
             return self.toTensor(gen_img), torch.FloatTensor(score_map[::, ::4, ::4]), \
                 torch.FloatTensor(geo_map[::, ::4, ::4]), torch.FloatTensor(training_mask[::, ::4, ::4]), \
                 valid_quad_resized, angles, crop_cont

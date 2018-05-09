@@ -14,6 +14,8 @@ import models
 from models import BidirectionalLSTM
 from layers import *
 
+from PIL import Image
+
 
 class DetectionBranch(nn.Module):
     """
@@ -168,6 +170,10 @@ class Hokuto(nn.Module):
         :return: total branch output
         """
         rec_out = None
+        # test crop and affine
+        ori_imgs = x.data
+        i = 0
+
         x = self.resnet(x)
         residual_layers = self.resnet.residual_layers
         x = self.deconv(x, residual_layers)
@@ -175,11 +181,10 @@ class Hokuto(nn.Module):
         # Reset residual cache
         self.resnet.residual_layers = []
 
-        # Choose quads in train_batch
-        #for q in quads:
         features = []
         for q, radian, index in zip(quads, angles, indexes):
-            feature = self.crop_tensor(x[index], min(q[:, 0]), max(q[:, 0]), min(q[:, 1]), max(q[:, 1]))
+            #feature = self.crop_tensor(x[index], min(q[:, 0]), max(q[:, 0]), min(q[:, 1]), max(q[:, 1]))
+            feature = self.crop_tensor(ori_imgs[index], min(q[:, 0]), max(q[:, 0]), min(q[:, 1]), max(q[:, 1]))
             feature_channel, feature_height, feature_width = feature.shape
             aff_width = feature_width * (config_e2e.input_height / feature_height)
 
@@ -198,6 +203,13 @@ class Hokuto(nn.Module):
                 zeropad = nn.ZeroPad2d((0, config_e2e.input_max_width - aff_width, 0, 0))
                 feature = zeropad(feature)
             features.append(feature)
+
+            # test crop and affine
+            img_tensor = feature.transpose((1, 2, 0))
+            img = Image.fromarray(np.uint8(np.array(img_tensor)))
+            img.save('/home/hcxiao/test_affine/%d.jpg' % i)
+            i += 1
+
         # stack feature together
         features = torch.stack(features)
         rec_out = self.recong(features)

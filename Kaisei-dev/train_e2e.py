@@ -213,7 +213,7 @@ def get_random_rec_datas(quads, angles, contents, batch_size = config.max_rec_ba
             flat_contents.append(content)
             flat_indexes.append(i)
 
-    if batch_size > len(flat_quads):
+    if batch_size >= len(flat_quads):
         random_quads = flat_quads
         random_angles = flat_angles
         random_contents = flat_contents
@@ -227,7 +227,7 @@ def get_random_rec_datas(quads, angles, contents, batch_size = config.max_rec_ba
             random_quads.append(flat_quads[random_index])
             random_angles.append(flat_angles[random_index])
             random_contents.append(flat_contents[random_index])
-            random_indexes.append(random_index)
+            random_indexes.append(flat_indexes[random_index])
             ind += 1
 
     return random_quads, random_angles, random_contents, random_indexes
