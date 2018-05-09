@@ -1123,7 +1123,7 @@ class STV2KDetDataset(Dataset):
             print('contents type:', type(crop_cont))
             return self.toTensor(gen_img), torch.FloatTensor(score_map[::, ::4, ::4]), \
                 torch.FloatTensor(geo_map[::, ::4, ::4]), torch.FloatTensor(training_mask[::, ::4, ::4]), \
-                {"batch":[valid_quad_resized, angles, crop_cont]}
+                {"batch": [valid_quad_resized, angles, crop_cont]}
         else:
             return self.toTensor(gen_img), torch.FloatTensor(score_map[::, ::4, ::4]), \
                    torch.FloatTensor(geo_map[::, ::4, ::4]), torch.FloatTensor(training_mask[::, ::4, ::4])
