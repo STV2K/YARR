@@ -167,12 +167,13 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
 
 def train_batch(net, criterion, optimizer):
     data = train_loader.next()
-    img_batch, score_maps, geo_maps, training_masks = data
+    img_batch, score_maps, geo_maps, training_masks, quads, angles, contents = data
     img_batch = Variable(img_batch)
     score_maps = Variable(score_maps)
     geo_maps = Variable(geo_maps)
     training_masks = Variable(training_masks)
-    pred_scores, pred_geos = hokuto(img_batch)
+    ran_quads, ran_angles, ran_contents, ran_indexes = get_random_rec_datas(quads, angles, contents)
+    pred_scores, pred_geos = hokuto(img_batch, ran_quads, ran_angles, ran_contents, ran_indexes)
     batch_loss = eval.loss(score_maps, pred_scores, geo_maps, pred_geos, training_masks)
     batch_loss = batch_loss / config.batch_size
     hokuto.zero_grad()
@@ -192,6 +193,44 @@ def train_batch(net, criterion, optimizer):
     # cost.backward()
     # optimizer.step()
     return batch_loss
+
+
+def get_random_rec_datas(quads, angles, contents, batch_size = config.max_rec_batch):
+    random_quads = []
+    random_angles = []
+    random_contents = []
+    random_indexes = []
+
+    flat_quads = []
+    flat_angles = []
+    flat_contents = []
+    flat_indexes = []
+    for i in len(quads):
+        for j in len(quads[i]):
+            flat_quads.append(quads[i][j])
+            flat_angles.append(angles[i][j])
+            content = data_util.filter_groundtruth_text(contents[i][j], ignore_char)
+            flat_contents.append(content)
+            flat_indexes.append(i)
+
+    if batch_size >= len(flat_quads):
+        random_quads = flat_quads
+        random_angles = flat_angles
+        random_contents = flat_contents
+        random_indexes = flat_indexes
+    else:
+        ind = 0
+        ind_table = list(len(flat_quads))
+        while ind < batch_size:
+            random_index = np.random.choice(ind_table)
+            ind_table.remove(random_index)
+            random_quads.append(flat_quads[random_index])
+            random_angles.append(flat_angles[random_index])
+            random_contents.append(flat_contents[random_index])
+            random_indexes.append(flat_indexes[random_index])
+            ind += 1
+
+    return random_quads, random_angles, random_contents, random_indexes
 
 
 def hokuto_train():
