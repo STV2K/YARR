@@ -21,6 +21,7 @@ from torch.autograd import Variable
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import DataLoaderIter
+from torch.utils.data.dataloader import default_collate
 
 # from torch.utils.data import sampler
 
@@ -281,7 +282,7 @@ def check_and_validate_polys(polys, tags, tag_bools, img_size):
         validated_polys.append(poly)
         validated_tags.append(tag)
         validated_bools.append(tag_bool)
-    return np.array(validated_polys), np.array(validated_tags), np.array(validated_bools)
+    return np.array(validated_polys), validated_tags, np.array(validated_bools)
 
 
 def point_dist_to_line(p1, p2, p3):
@@ -1111,9 +1112,18 @@ class STV2KDetDataset(Dataset):
         # Downsample the groundtruth to match the output size
         # print("Finishing img:", img_path)
         if self.with_text:
+            valid_quad_resized = valid_quad_resized.tolist()
+            angles = np.array(angles)
+            angles = angles.tolist()
+            crop_cont = np.array(crop_cont)
+            crop_cont = crop_cont.tolist()
+            print('contents length:', len(crop_cont))
+            print('quads type:', type(valid_quad_resized))
+            print('angles type:', type(angles))
+            print('contents type:', type(crop_cont))
             return self.toTensor(gen_img), torch.FloatTensor(score_map[::, ::4, ::4]), \
                 torch.FloatTensor(geo_map[::, ::4, ::4]), torch.FloatTensor(training_mask[::, ::4, ::4]), \
-                valid_quad_resized, angles, crop_cont
+                {"batch":[valid_quad_resized, angles, crop_cont]}
         else:
             return self.toTensor(gen_img), torch.FloatTensor(score_map[::, ::4, ::4]), \
                    torch.FloatTensor(geo_map[::, ::4, ::4]), torch.FloatTensor(training_mask[::, ::4, ::4])
@@ -1124,12 +1134,13 @@ class DataProvider:
     def __init__(self, batch_size=8, is_cuda=False, num_workers=config.data_loader_worker_num,
                  data_path=config.training_data_path_z440, with_text=False, test_set=False):
         self.batch_size = batch_size
-        self.dataset = STV2KDetDataset(data_path, test_set, with_text)
+        self.dataset = STV2KDetDataset(data_path, is_test_set=test_set, with_text=with_text)
         self.is_cuda = is_cuda
         self.data_iter = None
         self.iteration = 0  # iteration num of current epoch
         self.epoch = 0  # total epoch(s) finished
         self.num_workers = num_workers
+        self.with_text = with_text
         print("Image mean normalization is temporarily disabled.")
         # if "train" in data_path:
         #    self.image_channel_means = config.STV2K_train_image_channel_means
@@ -1140,8 +1151,12 @@ class DataProvider:
         # print("Image channel means set to ", self.image_channel_means, " for dataset on ", data_path)
 
     def build(self):
-        data_loader = DataLoader(self.dataset, batch_size=self.batch_size,
-                                 shuffle=True, num_workers=self.num_workers, drop_last=True)
+        if self.with_text:
+            data_loader = DataLoader(self.dataset, batch_size=self.batch_size,
+                                     shuffle=True, num_workers=self.num_workers, drop_last=True, collate_fn=collate_fn)
+        else:
+            data_loader = DataLoader(self.dataset, batch_size=self.batch_size,
+                                     shuffle=True, num_workers=self.num_workers, drop_last=True)
         self.data_iter = DataLoaderIter(data_loader)
 
     def next(self):
@@ -1171,6 +1186,15 @@ class DataProvider:
                         batch[i] = batch[i].cuda()
             return batch
 
+
+def collate_fn(batch):
+    ds = []
+    bs = []
+    for item in batch:
+        ds.append(item[-1])
+        bs.append(item[0:4])
+
+    return default_collate(bs), ds
 
 # DEPRECATED
 # def crop_area(im, polys, tags, crop_background=False, max_tries=50):

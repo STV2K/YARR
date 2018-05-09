@@ -58,7 +58,7 @@ class RecognitionBranch(nn.Module):
     def __init__(self, n_class, nh, n_channel=config_e2e.n_channel,
                  img_h=config_e2e.input_height, leaky_relu=False):
         super().__init__()
-        assert img_h % 16 == 0, 'imgH has to be a multiple of 16'
+        assert img_h % 8 == 0, 'imgH has to be a multiple of 8'
 
         ks = [3, 3, 3, 3, 3, 3, 2]
         ps = [1, 1, 1, 1, 1, 1, 0]

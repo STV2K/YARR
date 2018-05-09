@@ -48,10 +48,10 @@ test_loader = data_util.DataProvider(batch_size=config.test_batch_size,
                                      test_set=True)
 
 alphabet = data_util.load_alphabet_txt(config.alphabet_filepath, "GBK")
-ignore_char = data_util.load_alphabet_txt(config.ignore_char_filepath, "GBK")
-replace_dict = config.replace_dict
+ignore_char = data_util.load_alphabet_txt(config.ignore_char_filepath, "utf-8")
+replace_dict = config.replace_table
 n_class = len(alphabet) + 1
-converter = rec_utils.StrLabelConverter(alphabet)
+#converter = rec_utils.StrLabelConverter(alphabet)
 criterion = CTCLoss()
 
 
@@ -205,8 +205,8 @@ def get_random_rec_datas(quads, angles, contents, batch_size = config.max_rec_ba
     flat_angles = []
     flat_contents = []
     flat_indexes = []
-    for i in len(quads):
-        for j in len(quads[i]):
+    for i in range(len(quads)):
+        for j in range(len(quads[i])):
             flat_quads.append(quads[i][j])
             flat_angles.append(angles[i][j])
             content = data_util.filter_groundtruth_text(contents[i][j], ignore_char)
