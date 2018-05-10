@@ -171,8 +171,8 @@ class Hokuto(nn.Module):
         """
         rec_out = None
         # test crop and affine
-        ori_imgs = x.data
-        i = 0
+        #ori_imgs = x.data
+        #i = 0
 
         x = self.resnet(x)
         residual_layers = self.resnet.residual_layers
@@ -183,10 +183,15 @@ class Hokuto(nn.Module):
 
         features = []
         for q, radian, index in zip(quads, angles, indexes):
-            #feature = self.crop_tensor(x[index], min(q[:, 0]), max(q[:, 0]), min(q[:, 1]), max(q[:, 1]))
-            feature = self.crop_tensor(ori_imgs[index], min(q[:, 0]), max(q[:, 0]), min(q[:, 1]), max(q[:, 1]))
+            q = np.array(q)
+            feature = self.crop_tensor(x[index], int(min(q[:, 0])), int(max(q[:, 0])), int(min(q[:, 1])), int(max(q[:, 1])))
+            #feature = self.crop_tensor(ori_imgs[index], int(min(q[:, 0])), int(max(q[:, 0])), int(min(q[:, 1])), int(max(q[:, 1])))
+            #ori_img = feature.permute(1, 2, 0)
+            #img = Image.fromarray(np.uint8(255 * np.array(ori_img)))
+            #img.save('/home/hcxiao/test_affine/-angle_ori_%d.jpg' % i)
+
             feature_channel, feature_height, feature_width = feature.shape
-            aff_width = feature_width * (config_e2e.input_height / feature_height)
+            aff_width = int(feature_width * (config_e2e.input_height / feature_height))
 
             zero_pad_flag = True
             if aff_width > config_e2e.input_max_width:
@@ -194,9 +199,14 @@ class Hokuto(nn.Module):
                 zero_pad_flag = False
 
             # store angle from data_util
-            aff_matrix = self.generate_affine_matrix(radian)
-            aff_flow_grid = F.affine_grid(aff_matrix, torch.Size((feature_channel, config_e2e.input_height, aff_width)))
-            feature = F.grid_sample(feature, aff_flow_grid)
+            aff_matrix = self.generate_affine_matrix(-radian)
+            aff_flow_grid = F.affine_grid(aff_matrix, torch.Size((1, feature_channel, config_e2e.input_height, aff_width)))
+            feature = feature.unsqueeze(0)
+            torch.backends.cudnn.enabled = False
+            feature = F.grid_sample(feature, aff_flow_grid.cuda())
+            torch.backends.cudnn.enabled = True
+
+            feature = feature[0]
             # how to determine w here?  --define in config_e2e
             # Then pad to longest width
             if zero_pad_flag:
@@ -205,10 +215,12 @@ class Hokuto(nn.Module):
             features.append(feature)
 
             # test crop and affine
-            img_tensor = feature.transpose((1, 2, 0))
-            img = Image.fromarray(np.uint8(np.array(img_tensor)))
-            img.save('/home/hcxiao/test_affine/%d.jpg' % i)
-            i += 1
+            #img_tensor = feature.permute(1, 2, 0)
+            #print(img_tensor.size())
+            #img = Image.fromarray(np.uint8(255 * np.array(img_tensor.data)))
+            #img.save('/home/hcxiao/test_affine/-angle_%d.jpg' % i)
+            #print('save image %d' % i)
+            #i += 1
 
         # stack feature together
         features = torch.stack(features)
@@ -240,8 +252,8 @@ class Hokuto(nn.Module):
         PyTorch Convention: nBatch * nChannel * nHeight * nWidth
         """
         # Crop the width-dim
-        crop = torch.index_select(tensor, 2, torch.LongTensor(list(range(w_min, w_max + 1))))
-        crop = torch.index_select(crop, 1, torch.LongTensor(list(range(h_min, h_max + 1))))
+        crop = torch.index_select(tensor, 2, torch.cuda.LongTensor(list(range(w_min, w_max + 1))))
+        crop = torch.index_select(crop, 1, torch.cuda.LongTensor(list(range(h_min, h_max + 1))))
         return crop
 
     @staticmethod

@@ -167,12 +167,13 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
 
 def train_batch(net, criterion, optimizer):
     data = train_loader.next()
-    img_batch, score_maps, geo_maps, training_masks, quads, angles, contents = data
-    img_batch = Variable(img_batch)
-    score_maps = Variable(score_maps)
-    geo_maps = Variable(geo_maps)
-    training_masks = Variable(training_masks)
-    ran_quads, ran_angles, ran_contents, ran_indexes = get_random_rec_datas(quads, angles, contents)
+    [img_batch, score_maps, geo_maps, training_masks], dic = data
+    # print(dic)
+    img_batch = Variable(img_batch.cuda())
+    score_maps = Variable(score_maps.cuda())
+    geo_maps = Variable(geo_maps.cuda())
+    training_masks = Variable(training_masks.cuda())
+    ran_quads, ran_angles, ran_contents, ran_indexes = get_random_rec_datas(dic)
     pred_scores, pred_geos = hokuto(img_batch, ran_quads, ran_angles, ran_contents, ran_indexes)
     batch_loss = eval.loss(score_maps, pred_scores, geo_maps, pred_geos, training_masks)
     batch_loss = batch_loss / config.batch_size
@@ -195,7 +196,7 @@ def train_batch(net, criterion, optimizer):
     return batch_loss
 
 
-def get_random_rec_datas(quads, angles, contents, batch_size = config.max_rec_batch):
+def get_random_rec_datas(dic, batch_size = config.max_rec_batch):
     random_quads = []
     random_angles = []
     random_contents = []
@@ -205,6 +206,15 @@ def get_random_rec_datas(quads, angles, contents, batch_size = config.max_rec_ba
     flat_angles = []
     flat_contents = []
     flat_indexes = []
+    quads = []
+    angles = []
+    contents = []
+    for i in range(len(dic)):
+        quad, angle, content = dic[i]['batch']
+        quads.append(quad)
+        angles.append(angle)
+        contents.append(content)
+
     for i in range(len(quads)):
         for j in range(len(quads[i])):
             flat_quads.append(quads[i][j])

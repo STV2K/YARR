@@ -1117,10 +1117,6 @@ class STV2KDetDataset(Dataset):
             angles = angles.tolist()
             crop_cont = np.array(crop_cont)
             crop_cont = crop_cont.tolist()
-            print('contents length:', len(crop_cont))
-            print('quads type:', type(valid_quad_resized))
-            print('angles type:', type(angles))
-            print('contents type:', type(crop_cont))
             return self.toTensor(gen_img), torch.FloatTensor(score_map[::, ::4, ::4]), \
                 torch.FloatTensor(geo_map[::, ::4, ::4]), torch.FloatTensor(training_mask[::, ::4, ::4]), \
                 {"batch": [valid_quad_resized, angles, crop_cont]}
