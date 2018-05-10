@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 import torchvision as tv
+from torch.autograd import Variable
 
 import config
 import config_e2e
@@ -106,7 +107,7 @@ class RecognitionBranch(nn.Module):
 
         self.cnn = cnn
         self.rnn = nn.Sequential(
-            BidirectionalLSTM(512, nh, nh),
+            BidirectionalLSTM(256, nh, nh),
             BidirectionalLSTM(nh, nh, n_class))
 
     def forward(self, inp):
@@ -184,7 +185,9 @@ class Hokuto(nn.Module):
         features = []
         for q, radian, index in zip(quads, angles, indexes):
             q = np.array(q)
-            feature = self.crop_tensor(x[index], int(min(q[:, 0])), int(max(q[:, 0])), int(min(q[:, 1])), int(max(q[:, 1])))
+            q = q / 4.
+            q = np.clip(q, 0., 160.)
+            feature = self.crop_tensor(x[index].data, int(min(q[:, 0])), int(max(q[:, 0])), int(min(q[:, 1])), int(max(q[:, 1])))
             #feature = self.crop_tensor(ori_imgs[index], int(min(q[:, 0])), int(max(q[:, 0])), int(min(q[:, 1])), int(max(q[:, 1])))
             #ori_img = feature.permute(1, 2, 0)
             #img = Image.fromarray(np.uint8(255 * np.array(ori_img)))
@@ -252,8 +255,20 @@ class Hokuto(nn.Module):
         PyTorch Convention: nBatch * nChannel * nHeight * nWidth
         """
         # Crop the width-dim
-        crop = torch.index_select(tensor, 2, torch.cuda.LongTensor(list(range(w_min, w_max + 1))))
-        crop = torch.index_select(crop, 1, torch.cuda.LongTensor(list(range(h_min, h_max + 1))))
+        if w_min == w_max:
+            if w_min == 0:
+                w_max += 2
+            else:
+                w_min -= 2
+
+        if h_min == h_max:
+            if h_min == 0:
+                h_max += 2
+            else:
+                h_min -= 2
+        crop = torch.index_select(tensor, 2, torch.cuda.LongTensor(list(range(w_min, w_max))))
+        crop = torch.index_select(crop, 1, torch.cuda.LongTensor(list(range(h_min, h_max))))
+        print('crop shape:', crop.shape)
         return crop
 
     @staticmethod

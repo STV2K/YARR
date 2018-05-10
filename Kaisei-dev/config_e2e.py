@@ -46,14 +46,14 @@ n_channel = 128
 n_test_disp = 10
 max_rec_batch = 24
 num_hidden_state = 256
-replace_table = (("∧", "ā", "×", "★"),
-                 ("Λ", "a", "x", "*"))
+replace_table = (("∧", "ā", "×", "★", "λ"),
+                 ("Λ", "a", "x", "*", "Λ"))
 
 
 # GPU Training Settings
 data_loader_worker_num = 5  # Setting to 0 will load data in the main process
-gpu_list = [0]
-batch_size = 10  # set to 16 during training
+gpu_list = [3]
+batch_size = 4  # set to 16 during training
 test_batch_size = 10
 test_iter_num = 5
 iter_num = 1000

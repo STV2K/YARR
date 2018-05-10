@@ -77,6 +77,7 @@ if config.continue_train:
 
 if config.on_cuda:
     hokuto.cuda()
+    criterion = criterion.cuda()
 #    hokuto = torch.nn.DataParallel(hokuto, device_ids=config.gpu_list)
 
 # loss averages
@@ -96,7 +97,9 @@ else:
 
 # image = torch.FloatTensor(opt.batchSize, 3, opt.imgH, opt.imgH)
 text = torch.IntTensor(config.max_rec_batch * 5)
+text = Variable(text)
 length = torch.IntTensor(config.max_rec_batch)
+length = Variable(length)
 
 
 def val(net, dataset, criterion, max_iter=config.test_iter_num):
@@ -210,13 +213,14 @@ def train_batch(net, criterion, optimizer):
     batch_loss = batch_loss / config.batch_size
 
     # Calculate recognition loss
+    print(ran_contents)
     t, l = converter.encode(ran_contents)
     rec_utils.load_data(text, t)
     rec_utils.load_data(length, l)
     preds_size = Variable(torch.IntTensor([pred_rec.size(0)] * rect_batch_size))
     rec_loss = criterion(pred_rec, text, preds_size, length) / rect_batch_size
 
-    loss = batch_loss + rec_loss
+    loss = batch_loss + rec_loss.cuda()
 
     hokuto.zero_grad()
     loss.backward()
@@ -250,17 +254,24 @@ def get_random_rec_datas(dic, batch_size = config.max_rec_batch):
     quads = []
     angles = []
     contents = []
+    tags = []
     for i in range(len(dic)):
-        quad, angle, content = dic[i]['batch']
+        quad, angle, content, bool_tag = dic[i]['batch']
         quads.append(quad)
         angles.append(angle)
         contents.append(content)
+        tags.append(bool_tag)
 
     for i in range(len(quads)):
+        if len(quads[i]) == 0:
+            continue
         for j in range(len(quads[i])):
             # Remove vertical boxes
             q = np.array(quads[i][j])
             if (max(q[:, 1] - min(q[:, 1]))) > 2. * (max(q[:, 0]) - min(q[:, 0])):
+                continue
+
+            if not tags[i][j]:
                 continue
 
             flat_quads.append(quads[i][j])
@@ -277,7 +288,7 @@ def get_random_rec_datas(dic, batch_size = config.max_rec_batch):
         random_indexes = flat_indexes
     else:
         ind = 0
-        ind_table = list(len(flat_quads))
+        ind_table = list(range(len(flat_quads)))
         while ind < batch_size:
             random_index = np.random.choice(ind_table)
             ind_table.remove(random_index)

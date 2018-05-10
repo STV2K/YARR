@@ -63,5 +63,5 @@ adadelta = False
 rmsprop = True  # Default optimizer
 
 # Recognition
-replace_table = (("∧", "ā", "×", "★"),
-                 ("Λ", "a", "x", "*"))
+replace_table = (("∧", "ā", "×", "★", "λ"),
+                 ("Λ", "a", "x", "*", "Λ"))

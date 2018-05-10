@@ -948,6 +948,8 @@ def filter_groundtruth_text(text, ignore, replace_table=config.replace_table):
             continue
         elif c in replace_table[0]:
             c = replace_table[1][replace_table[0].index(c)]
+        elif c.isupper():
+            c = c.lower()
         filtered += c
     return  filtered
 
@@ -1117,9 +1119,11 @@ class STV2KDetDataset(Dataset):
             angles = angles.tolist()
             crop_cont = np.array(crop_cont)
             crop_cont = crop_cont.tolist()
+            crop_bool = np.array(crop_bool)
+            crop_bool = crop_bool.tolist()
             return self.toTensor(gen_img), torch.FloatTensor(score_map[::, ::4, ::4]), \
                 torch.FloatTensor(geo_map[::, ::4, ::4]), torch.FloatTensor(training_mask[::, ::4, ::4]), \
-                {"batch": [valid_quad_resized, angles, crop_cont]}
+                {"batch": [valid_quad_resized, angles, crop_cont, crop_bool]}
         else:
             return self.toTensor(gen_img), torch.FloatTensor(score_map[::, ::4, ::4]), \
                    torch.FloatTensor(geo_map[::, ::4, ::4]), torch.FloatTensor(training_mask[::, ::4, ::4])
