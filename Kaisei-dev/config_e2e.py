@@ -41,8 +41,9 @@ detect_output_dir = "results_e2e/"
 
 # Recognition Branch Settings
 input_height = 8
-input_max_width = 96
+input_max_width = 64
 n_channel = 128
+n_test_disp = 10
 max_rec_batch = 24
 num_hidden_state = 256
 replace_table = (("∧", "ā", "×", "★"),

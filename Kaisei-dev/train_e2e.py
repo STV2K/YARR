@@ -51,7 +51,7 @@ alphabet = data_util.load_alphabet_txt(config.alphabet_filepath, "GBK")
 ignore_char = data_util.load_alphabet_txt(config.ignore_char_filepath, "utf-8")
 replace_dict = config.replace_table
 n_class = len(alphabet) + 1
-#converter = rec_utils.StrLabelConverter(alphabet)
+converter = rec_utils.StrLabelConverter(''.join(alphabet))
 criterion = CTCLoss()
 
 
@@ -95,8 +95,8 @@ else:
 
 
 # image = torch.FloatTensor(opt.batchSize, 3, opt.imgH, opt.imgH)
-# text = torch.IntTensor(opt.batchSize * 5)
-# length = torch.IntTensor(opt.batchSize)
+text = torch.IntTensor(config.max_rec_batch * 5)
+length = torch.IntTensor(config.max_rec_batch)
 
 
 def val(net, dataset, criterion, max_iter=config.test_iter_num):
@@ -116,18 +116,47 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
     # for i in range(max(len(data_loader.data_iter), max_iter)): TODO: Check here
     for i in range(max_iter):
         data = data_loader.next()
-        img_batch, score_maps, geo_maps, training_masks = data
+        [img_batch, score_maps, geo_maps, training_masks], dic = data
         # img_batch = data_util.image_normalize(img_batch, config.STV2K_train_image_channel_means)
         img_batch = Variable(img_batch)
         score_maps = Variable(score_maps)
         geo_maps = Variable(geo_maps)
         training_masks = Variable(training_masks)
-        pred_scores, pred_geos = net(img_batch)
+        #pred_scores, pred_geos = net(img_batch)
+        ran_quads, ran_angles, ran_contents, ran_indexes, rect_batch_size = get_random_rec_datas(dic)
+        pred_scores, pred_geos, pred_rec = hokuto(img_batch, ran_quads, ran_angles, ran_contents, ran_indexes)
+
+        # Detection loss
         batch_loss = eval.loss(score_maps, pred_scores, geo_maps, pred_geos, training_masks)
         batch_loss = batch_loss / config.batch_size
         loss_det_avg.add(batch_loss)
 
+        # Recognition loss
+        t, l = converter.encode(ran_contents)
+        rec_utils.load_data(text, t)
+        rec_utils.load_data(length, l)
+        preds_size = Variable(torch.IntTensor([pred_rec.size(0)] * rect_batch_size))
+        rect_loss = criterion(pred_rec, text, preds_size, length) / rect_batch_size
+        loss_rec_avg.add(rect_loss)
+
+        # Recognition correct count
+        _, pred_rec = pred_rec.max(2)
+        pred_rec = pred_rec.squeeze(2)
+        pred_rec = pred_rec.transpose(1, 0).contiguous().view(-1)
+        sim_preds = converter.decode(pred_rec.data, preds_size.data, raw=False)
+        for pred, target in zip(sim_preds, ran_contents):
+            if pred == target.lower():
+                n_correct += 1
+
+    raw_preds = converter.decode(pred_rec.data, preds_size.data, raw=True)[:config.n_test_disp]
+    for raw_pred, pred, gt in zip(raw_preds, sim_preds, ran_contents):
+        print('%-20s => %-20s, gt: %-20s' % (raw_pred, pred, gt))
+
+    logger.tee('Test detection loss: %f' % (loss_det_avg.val()))
+    logger.tee('Test recognition loss: %f' % (loss_rec_avg.val()))
     logger.tee('Test loss: %f' % (loss_avg.val()))
+    loss_det_avg.reset()
+    loss_rec_avg.reset()
     loss_avg.reset()
     # i = 0
     #
@@ -173,12 +202,24 @@ def train_batch(net, criterion, optimizer):
     score_maps = Variable(score_maps.cuda())
     geo_maps = Variable(geo_maps.cuda())
     training_masks = Variable(training_masks.cuda())
-    ran_quads, ran_angles, ran_contents, ran_indexes = get_random_rec_datas(dic)
-    pred_scores, pred_geos = hokuto(img_batch, ran_quads, ran_angles, ran_contents, ran_indexes)
+    ran_quads, ran_angles, ran_contents, ran_indexes, rect_batch_size = get_random_rec_datas(dic)
+    pred_scores, pred_geos, pred_rec = hokuto(img_batch, ran_quads, ran_angles, ran_contents, ran_indexes)
+
+    # Calculate detection loss
     batch_loss = eval.loss(score_maps, pred_scores, geo_maps, pred_geos, training_masks)
     batch_loss = batch_loss / config.batch_size
+
+    # Calculate recognition loss
+    t, l = converter.encode(ran_contents)
+    rec_utils.load_data(text, t)
+    rec_utils.load_data(length, l)
+    preds_size = Variable(torch.IntTensor([pred_rec.size(0)] * rect_batch_size))
+    rec_loss = criterion(pred_rec, text, preds_size, length) / rect_batch_size
+
+    loss = batch_loss + rec_loss
+
     hokuto.zero_grad()
-    batch_loss.backward()
+    loss.backward()
     optimizer.step()
     # cpu_images, cpu_texts = data
     # batch_size = cpu_images.size(0)
@@ -193,7 +234,7 @@ def train_batch(net, criterion, optimizer):
     # crnn.zero_grad()
     # cost.backward()
     # optimizer.step()
-    return batch_loss
+    return batch_loss, rec_loss, loss
 
 
 def get_random_rec_datas(dic, batch_size = config.max_rec_batch):
@@ -217,6 +258,11 @@ def get_random_rec_datas(dic, batch_size = config.max_rec_batch):
 
     for i in range(len(quads)):
         for j in range(len(quads[i])):
+            # Remove vertical boxes
+            q = np.array(quads[i][j])
+            if (max(q[:, 1] - min(q[:, 1]))) > 2. * (max(q[:, 0]) - min(q[:, 0])):
+                continue
+
             flat_quads.append(quads[i][j])
             flat_angles.append(angles[i][j])
             content = data_util.filter_groundtruth_text(contents[i][j], ignore_char)
@@ -224,6 +270,7 @@ def get_random_rec_datas(dic, batch_size = config.max_rec_batch):
             flat_indexes.append(i)
 
     if batch_size >= len(flat_quads):
+        batch_size = len(flat_quads)
         random_quads = flat_quads
         random_angles = flat_angles
         random_contents = flat_contents
@@ -240,7 +287,7 @@ def get_random_rec_datas(dic, batch_size = config.max_rec_batch):
             random_indexes.append(flat_indexes[random_index])
             ind += 1
 
-    return random_quads, random_angles, random_contents, random_indexes
+    return random_quads, random_angles, random_contents, random_indexes, batch_size
 
 
 def hokuto_train():
@@ -257,13 +304,21 @@ def hokuto_train():
                 p.requires_grad = True
             epoch_now = train_loader.epoch
             hokuto.train()
-            cost = train_batch(hokuto, criterion, optimizer)
-            loss_avg.add(cost)
+            cost_det, cost_rec, cost_all = train_batch(hokuto, criterion, optimizer)
+            loss_det_avg.add(cost_det)
+            loss_rec_avg.add(cost_rec)
+            loss_avg.add(cost_all)
             i += 1
 
             if i % config.notify_interval == 0:
+                logger.tee('[%d/%d][It-%d] Detection Loss: %f' %
+                           (train_loader.epoch, config.epoch_num, i, loss_det_avg.val()))
+                logger.tee('[%d/%d][It-%d] Recognition Loss: %f' %
+                           (train_loader.epoch, config.epoch_num, i, loss_rec_avg.val()))
                 logger.tee('[%d/%d][It-%d] Loss: %f' %
                            (train_loader.epoch, config.epoch_num, i, loss_avg.val()))
+                loss_det_avg.reset()
+                loss_rec_avg.reset()
                 loss_avg.reset()
 
             if i % config.val_interval == 0:
