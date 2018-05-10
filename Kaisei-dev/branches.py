@@ -195,6 +195,8 @@ class Hokuto(nn.Module):
 
             feature_channel, feature_height, feature_width = feature.shape
             aff_width = int(feature_width * (config_e2e.input_height / feature_height))
+            if aff_width <= 0 :
+                aff_width = 1
 
             zero_pad_flag = True
             if aff_width > config_e2e.input_max_width:
@@ -266,6 +268,7 @@ class Hokuto(nn.Module):
                 h_max += 2
             else:
                 h_min -= 2
+        print(h_min, h_max, w_min, w_max)
         crop = torch.index_select(tensor, 2, torch.cuda.LongTensor(list(range(w_min, w_max))))
         crop = torch.index_select(crop, 1, torch.cuda.LongTensor(list(range(h_min, h_max))))
         print('crop shape:', crop.shape)

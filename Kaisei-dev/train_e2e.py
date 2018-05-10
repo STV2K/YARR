@@ -127,7 +127,8 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
         training_masks = Variable(training_masks)
         #pred_scores, pred_geos = net(img_batch)
         ran_quads, ran_angles, ran_contents, ran_indexes, rect_batch_size = get_random_rec_datas(dic)
-        pred_scores, pred_geos, pred_rec = hokuto(img_batch, ran_quads, ran_angles, ran_contents, ran_indexes)
+        #print(type(img_batch.data), type(ran_quads))
+        pred_scores, pred_geos, pred_rec = hokuto(img_batch.cuda(), ran_quads, ran_angles, ran_contents, ran_indexes)
 
         # Detection loss
         batch_loss = eval.loss(score_maps, pred_scores, geo_maps, pred_geos, training_masks)
@@ -268,7 +269,7 @@ def get_random_rec_datas(dic, batch_size = config.max_rec_batch):
         for j in range(len(quads[i])):
             # Remove vertical boxes
             q = np.array(quads[i][j])
-            if (max(q[:, 1] - min(q[:, 1]))) > 2. * (max(q[:, 0]) - min(q[:, 0])):
+            if (max(q[:, 1] - min(q[:, 1]))) > (2. * (max(q[:, 0]) - min(q[:, 0]))):
                 continue
 
             if not tags[i][j]:
@@ -332,7 +333,7 @@ def hokuto_train():
                 loss_rec_avg.reset()
                 loss_avg.reset()
 
-            if i % config.val_interval == 0:
+            if i % config.val_interval == 1:
                 val(hokuto, test_loader, criterion)
 
             # checkpoint
