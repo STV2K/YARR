@@ -131,7 +131,8 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
         pred_scores, pred_geos, pred_rec = hokuto(img_batch.cuda(), ran_quads, ran_angles, ran_contents, ran_indexes)
 
         # Detection loss
-        batch_loss = eval.loss(score_maps, pred_scores, geo_maps, pred_geos, training_masks)
+        #batch_loss = eval.loss(score_maps, pred_scores, geo_maps, pred_geos, training_masks)
+        batch_loss = eval.loss(score_maps.cuda(), pred_scores.cuda(), geo_maps.cuda(), pred_geos, training_masks.cuda())
         batch_loss = batch_loss / config.batch_size
         loss_det_avg.add(batch_loss)
 
@@ -140,12 +141,13 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
         rec_utils.load_data(text, t)
         rec_utils.load_data(length, l)
         preds_size = Variable(torch.IntTensor([pred_rec.size(0)] * rect_batch_size))
-        rect_loss = criterion(pred_rec, text, preds_size, length) / rect_batch_size
-        loss_rec_avg.add(rect_loss)
+        rec_loss = criterion(pred_rec, text, preds_size, length) / rect_batch_size
+        rec_loss *= 0.0006
+        loss_rec_avg.add(rec_loss)
 
         # Recognition correct count
         _, pred_rec = pred_rec.max(2)
-        pred_rec = pred_rec.squeeze(2)
+        #pred_rec = pred_rec.squeeze(2)
         pred_rec = pred_rec.transpose(1, 0).contiguous().view(-1)
         sim_preds = converter.decode(pred_rec.data, preds_size.data, raw=False)
         for pred, target in zip(sim_preds, ran_contents):
@@ -207,21 +209,26 @@ def train_batch(net, criterion, optimizer):
     geo_maps = Variable(geo_maps.cuda())
     training_masks = Variable(training_masks.cuda())
     ran_quads, ran_angles, ran_contents, ran_indexes, rect_batch_size = get_random_rec_datas(dic)
-    pred_scores, pred_geos, pred_rec = hokuto(img_batch, ran_quads, ran_angles, ran_contents, ran_indexes)
+    rec_flag = False if len(ran_quads) == 0 else True
+    pred_scores, pred_geos, pred_rec = hokuto(img_batch, ran_quads, ran_angles, ran_contents, ran_indexes, rec_flag)
 
     # Calculate detection loss
     batch_loss = eval.loss(score_maps, pred_scores, geo_maps, pred_geos, training_masks)
     batch_loss = batch_loss / config.batch_size
 
     # Calculate recognition loss
-    print(ran_contents)
-    t, l = converter.encode(ran_contents)
-    rec_utils.load_data(text, t)
-    rec_utils.load_data(length, l)
-    preds_size = Variable(torch.IntTensor([pred_rec.size(0)] * rect_batch_size))
-    rec_loss = criterion(pred_rec, text, preds_size, length) / rect_batch_size
+    if len(ran_quads) != 0:
+        print(ran_contents)
+        t, l = converter.encode(ran_contents)
+        rec_utils.load_data(text, t)
+        rec_utils.load_data(length, l)
+        preds_size = Variable(torch.IntTensor([pred_rec.size(0)] * rect_batch_size))
+        rec_loss = criterion(pred_rec, text, preds_size, length) / rect_batch_size
+        rec_loss *= 0.0006
 
-    loss = batch_loss + rec_loss.cuda()
+        loss = batch_loss + rec_loss.cuda()
+    else:
+        loss = batch_loss
 
     hokuto.zero_grad()
     loss.backward()

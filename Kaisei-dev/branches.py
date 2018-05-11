@@ -163,7 +163,7 @@ class Hokuto(nn.Module):
         self.detect = DetectionBranch()
         self.recong = RecognitionBranch(n_class, n_hidden_status, n_channel=config_e2e.n_channel)
 
-    def forward(self, x, quads, angles, contents, indexes):
+    def forward(self, x, quads, angles, contents, indexes, rec_flag):
         """
         :param x: output tensor from feature sharing block, expect channel_num to be 256. Batch * Channel * Height * Width
         :param quads: valid quads in the gt. Max_rec_batch * 4 * 2
@@ -182,55 +182,58 @@ class Hokuto(nn.Module):
         # Reset residual cache
         self.resnet.residual_layers = []
 
-        features = []
-        for q, radian, index in zip(quads, angles, indexes):
-            q = np.array(q)
-            q = q / 4.
-            q = np.clip(q, 0., 160.)
-            feature = self.crop_tensor(x[index].data, int(min(q[:, 0])), int(max(q[:, 0])), int(min(q[:, 1])), int(max(q[:, 1])))
-            #feature = self.crop_tensor(ori_imgs[index], int(min(q[:, 0])), int(max(q[:, 0])), int(min(q[:, 1])), int(max(q[:, 1])))
-            #ori_img = feature.permute(1, 2, 0)
-            #img = Image.fromarray(np.uint8(255 * np.array(ori_img)))
-            #img.save('/home/hcxiao/test_affine/-angle_ori_%d.jpg' % i)
+        if rec_flag:
+            features = []
+            for q, radian, index in zip(quads, angles, indexes):
+                q = np.array(q)
+                q = q / 4.
+                q = np.clip(q, 0., 160.)
+                feature = self.crop_tensor(x[index].data, int(min(q[:, 0])), int(max(q[:, 0])), int(min(q[:, 1])), int(max(q[:, 1])))
+                #feature = self.crop_tensor(ori_imgs[index], int(min(q[:, 0])), int(max(q[:, 0])), int(min(q[:, 1])), int(max(q[:, 1])))
+                #ori_img = feature.permute(1, 2, 0)
+                #img = Image.fromarray(np.uint8(255 * np.array(ori_img)))
+                #img.save('/home/hcxiao/test_affine/-angle_ori_%d.jpg' % i)
 
-            feature_channel, feature_height, feature_width = feature.shape
-            aff_width = int(feature_width * (config_e2e.input_height / feature_height))
-            if aff_width <= 0 :
-                aff_width = 1
+                feature_channel, feature_height, feature_width = feature.shape
+                aff_width = int(feature_width * (config_e2e.input_height / feature_height))
+                if aff_width <= 0 :
+                    aff_width = 1
 
-            zero_pad_flag = True
-            if aff_width > config_e2e.input_max_width:
-                aff_width = config_e2e.input_max_width
-                zero_pad_flag = False
+                zero_pad_flag = True
+                if aff_width > config_e2e.input_max_width:
+                    aff_width = config_e2e.input_max_width
+                    zero_pad_flag = False
 
-            # store angle from data_util
-            aff_matrix = self.generate_affine_matrix(-radian)
-            aff_flow_grid = F.affine_grid(aff_matrix, torch.Size((1, feature_channel, config_e2e.input_height, aff_width)))
-            feature = feature.unsqueeze(0)
-            torch.backends.cudnn.enabled = False
-            feature = F.grid_sample(feature, aff_flow_grid.cuda())
-            torch.backends.cudnn.enabled = True
+                # store angle from data_util
+                aff_matrix = self.generate_affine_matrix(-radian)
+                aff_flow_grid = F.affine_grid(aff_matrix, torch.Size((1, feature_channel, config_e2e.input_height, aff_width)))
+                feature = feature.unsqueeze(0)
+                torch.backends.cudnn.enabled = False
+                feature = F.grid_sample(feature, aff_flow_grid.cuda())
+                torch.backends.cudnn.enabled = True
 
-            feature = feature[0]
-            # how to determine w here?  --define in config_e2e
-            # Then pad to longest width
-            if zero_pad_flag:
-                zeropad = nn.ZeroPad2d((0, config_e2e.input_max_width - aff_width, 0, 0))
-                feature = zeropad(feature)
-            features.append(feature)
+                feature = feature[0]
+                # how to determine w here?  --define in config_e2e
+                # Then pad to longest width
+                if zero_pad_flag:
+                    zeropad = nn.ZeroPad2d((0, config_e2e.input_max_width - aff_width, 0, 0))
+                    feature = zeropad(feature)
+                features.append(feature)
 
-            # test crop and affine
-            #img_tensor = feature.permute(1, 2, 0)
-            #print(img_tensor.size())
-            #img = Image.fromarray(np.uint8(255 * np.array(img_tensor.data)))
-            #img.save('/home/hcxiao/test_affine/-angle_%d.jpg' % i)
-            #print('save image %d' % i)
-            #i += 1
+                # test crop and affine
+                #img_tensor = feature.permute(1, 2, 0)
+                #print(img_tensor.size())
+                #img = Image.fromarray(np.uint8(255 * np.array(img_tensor.data)))
+                #img.save('/home/hcxiao/test_affine/-angle_%d.jpg' % i)
+                #print('save image %d' % i)
+                #i += 1
 
-        # stack feature together
-        features = torch.stack(features)
-        rec_out = self.recong(features)
-        return score_map, geometry_map, rec_out
+            # stack feature together
+            features = torch.stack(features)
+            rec_out = self.recong(features)
+            return score_map, geometry_map, rec_out
+        else:
+            return score_map, geometry_map, []
 
     # The RoIAffine Operators
     @staticmethod
@@ -259,15 +262,15 @@ class Hokuto(nn.Module):
         # Crop the width-dim
         if w_min == w_max:
             if w_min == 0:
-                w_max += 2
+                w_max += 1
             else:
-                w_min -= 2
+                w_min -= 1
 
         if h_min == h_max:
             if h_min == 0:
-                h_max += 2
+                h_max += 1
             else:
-                h_min -= 2
+                h_min -= 1
         print(h_min, h_max, w_min, w_max)
         crop = torch.index_select(tensor, 2, torch.cuda.LongTensor(list(range(w_min, w_max))))
         crop = torch.index_select(crop, 1, torch.cuda.LongTensor(list(range(h_min, h_max))))
