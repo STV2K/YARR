@@ -7,20 +7,21 @@ import config_utils as config
 import data_utils as data_utils
 import tf_extended as tfe
 
+import lanms
 from nets import STVNet
 from PIL import Image
 import matplotlib.pyplot as plt
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_test/'
 ICDAR_Path='/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_test_images/'
 img_name = 'STV2K_ts_0683.jpg' #'img_243.jpg'
 PATH = STV2K_Path
 
-test_all_path = ICDAR_Path
+test_all_path = STV2K_Path
 generate_pic_path = './results/icdar/angles/'
-generate_txt_path = './results/icdar/texts/'
+generate_txt_path = './results/stv2k/paper_data/300-11100-threshold-point35'
 generate_threshold = 0.05
 
 img_width = config.FLAGS.input_size_width
@@ -174,10 +175,10 @@ def test_all(dir_path):
                     img = Image.open(dir_path + filename)
                     img = np.array(img)
                     r_boxes = bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], pre_an[1][0], generate_threshold, (31, 119, 180))
-                    result_img = Image.fromarray(np.uint8(img))
-                    result_img.save(generate_pic_path + filename)
+#                    result_img = Image.fromarray(np.uint8(img))
+#                    result_img.save(generate_pic_path + filename)
 #                    txt_generator(filename, pre_s[1][0], pre_box[1][0], generate_threshold, ori_width, ori_height)
-#                    txt_generator(filename, r_boxes)
+                    txt_generator(filename, r_boxes)
                     print(filename + ' finished.')
 
 
@@ -257,7 +258,7 @@ def bboxes_draw_on_img(img, scores, bboxes, angles, threshold, color, thickness=
         rbox = np.array([cor0, cor1, cor2, cor3])
         rbox = rbox.astype(np.int32)
         #cv2.polylines(img, [rbox], True, (0, 255, 0), 3)
-        cv2.drawContours(img, [rbox], -1, (255, 255, 0), 3)
+#        cv2.drawContours(img, [rbox], -1, (255, 255, 0), 3)
         r_boxes.append(rbox)
 
         # Draw text...
@@ -268,7 +269,7 @@ def bboxes_draw_on_img(img, scores, bboxes, angles, threshold, color, thickness=
 
 
 if __name__ == '__main__':
-    test(img_name)
-#    test_all(test_all_path)
+#    test(img_name)
+    test_all(test_all_path)
     
 

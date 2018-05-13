@@ -391,10 +391,10 @@ def detected_bboxes(predictions, localisations, angles=None,
     rscores, rbboxes, rangles = \
         tfe.bboxes_sort(rscores, rbboxes, rangles, top_k=top_k)
     # Apply NMS algorithm.
-    rscores, rbboxes, rangles = \
-        tfe.bboxes_nms_batch(rscores, rbboxes, rangles,
-                             nms_threshold=nms_threshold,
-                             keep_top_k=keep_top_k)
+#    rscores, rbboxes, rangles = \
+#        tfe.bboxes_nms_batch(rscores, rbboxes, rangles,
+#                             nms_threshold=nms_threshold,
+#                             keep_top_k=keep_top_k)
     if clipping_bbox is not None:
         rbboxes = tfe.bboxes_clip(clipping_bbox, rbboxes)
     return rscores, rbboxes, rangles
