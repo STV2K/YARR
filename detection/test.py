@@ -118,11 +118,13 @@ def test(img_name):
             img = np.array(img)
 
             # img = np.copy(im)
-            bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], pre_an[1][0], generate_threshold, (31, 119, 180))
+            r_boxes = restore_rbox(pre_s[1][0], pre_box[1][0], pre_an[1][0], img.shape)
+            r_boxes = lanms.merge_quadrangle_n9(r_boxes.astype('float32'), config.FLAGS.nms_threshold)
+            bboxes_draw_on_img(img, r_boxes, generate_threshold, (31, 119, 180))
             # fig = plt.figure(figsize=(12, 12))
             # plt.imshow(img)
             result_img = Image.fromarray(np.uint8(img))
-            result_img.save('results/angles/v5-' + str(config.FLAGS.input_size_width) + '-' + ckpt_path.split('-')[-1] + '-' + img_name)
+            result_img.save('results/angles/lanms-' + str(config.FLAGS.nms_threshold * 100) + '-' + str(config.FLAGS.input_size_width) + '-' + ckpt_path.split('-')[-1] + '-' + img_name)
 
 
 def test_all(dir_path):
@@ -174,7 +176,10 @@ def test_all(dir_path):
 
                     img = Image.open(dir_path + filename)
                     img = np.array(img)
-                    r_boxes = bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], pre_an[1][0], generate_threshold, (31, 119, 180))
+                    r_boxes = restore_rbox(pre_s[1][0], pre_box[1][0], pre_an[1][0], img.shape)
+                    r_boxes = lanms.merge_quadrangle_n9(r_boxes.astype('float32'), config.FLAGS.nms_threshold)
+                    bboxes_draw_on_img(img, r_boxes, generate_threshold, (31, 119, 180))
+                    # r_boxes = bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], pre_an[1][0], generate_threshold, (31, 119, 180))
 #                    result_img = Image.fromarray(np.uint8(img))
 #                    result_img.save(generate_pic_path + filename)
 #                    txt_generator(filename, pre_s[1][0], pre_box[1][0], generate_threshold, ori_width, ori_height)
@@ -182,46 +187,15 @@ def test_all(dir_path):
                     print(filename + ' finished.')
 
 
-#def txt_generator(filename, scores, bboxes, threshold, width, height):
-def txt_generator(filename, r_boxes):
-    txt_save_path = os.path.join(generate_txt_path, 'res_' + filename.split('.')[0]+'.txt')
-    txt_file = open(txt_save_path, 'wt')
-
-    for i in range(len(r_boxes)):
-#        bbox = bboxes[i]
-#        score = scores[i]
-#        if score < threshold:
-#            continue
-#        ymin = str(int(bbox[0]*height))
-#        xmin = str(int(bbox[1]*width))
-#        ymax = str(int(bbox[2]*height))
-#        xmax = str(int(bbox[3]*width))
-#        result_str = xmin+','+ymin+','+xmax+','+ymin+','+xmax+','+ymax+','+xmin+','+ymax+'\r\n'
-        (x1, y1), (x2, y2), (x3, y3), (x4, y4) = r_boxes[i]
-        result_str = str(x1)+','+str(y1)+','+str(x2)+','+str(y2)+','+str(x3)+','+str(y3)+','+str(x4)+','+str(y4)+'\r\n'
-        txt_file.write(result_str)
-
-    txt_file.close()
-
-
-        
-def bboxes_draw_on_img(img, scores, bboxes, angles, threshold, color, thickness=5):
-    shape = img.shape
+def restore_rbox(scores, boxes, angles, shape):
     r_boxes = []
-    for i in range(len(bboxes)):
-        if(scores[i] > threshold):
-            color = (255, 255, 0)
-        else:
-            color = (31, 119, 180)
-            continue
-        bbox = bboxes[i]
+    for i in range(len(boxes)):
+        bbox = boxes[i]
         # Draw bounding box...
         bbox = np.clip(bbox, 0.0, 1.0)
         p1 = (int(bbox[0] * shape[0]), int(bbox[1] * shape[1]))
         p2 = (int(bbox[2] * shape[0]), int(bbox[3] * shape[1]))
-#        cv2.rectangle(img, p1[::-1], p2[::-1], color, thickness)
 
-        # Draw rbox
         theta = angles[i]
         angle = angles[i] / np.pi * 180
         if angle < 0 and angle > -3:
@@ -255,17 +229,45 @@ def bboxes_draw_on_img(img, scores, bboxes, angles, threshold, color, thickness=
             cor1 = (x0 + dx1, y0 - dy1)
             cor2 = (x0 + dx2, y0 - dy2)
             cor3 = (x0 - dx1, y0 + dy1)
-        rbox = np.array([cor0, cor1, cor2, cor3])
-        rbox = rbox.astype(np.int32)
-        #cv2.polylines(img, [rbox], True, (0, 255, 0), 3)
-#        cv2.drawContours(img, [rbox], -1, (255, 255, 0), 3)
+
+        rbox = np.array([cor0[0], cor0[1], cor1[0], cor1[1], cor2[0], cor2[1], cor3[0], cor3[1], scores[i]])
         r_boxes.append(rbox)
 
+    return r_boxes
+
+
+
+#def txt_generator(filename, scores, bboxes, threshold, width, height):
+def txt_generator(filename, r_boxes):
+    txt_save_path = os.path.join(generate_txt_path, 'res_' + filename.split('.')[0]+'.txt')
+    txt_file = open(txt_save_path, 'wt')
+
+    for i in range(len(r_boxes)):
+        x1, y1, x2, y2, x3, y3, x4, y4,_ = r_boxes[i]
+        result_str = str(x1)+','+str(y1)+','+str(x2)+','+str(y2)+','+str(x3)+','+str(y3)+','+str(x4)+','+str(y4)+'\r\n'
+        txt_file.write(result_str)
+
+    txt_file.close()
+
+        
+def bboxes_draw_on_img(img, r_boxes, threshold, color, thickness=5):
+    shape = img.shape
+
+    for i, box in enumerate(r_boxes):
+        # if(scores[i] > threshold):
+        #     color = (255, 255, 0)
+        # else:
+        #     color = (31, 119, 180)
+        #     continue
+        rbox = box[:8].reshape([-1, 4, 2]).astype(np.int32)
+
+        #cv2.polylines(img, [rbox], True, (0, 255, 0), 3)
+#        cv2.drawContours(img, rbox, -1, (255, 255, 0), 3)
+
         # Draw text...
-        s = '%.3f / %.2f' % (scores[i], angle)
+        s = '%.3f' % (box[8])
         p1 = (p1[0]-5, p1[1])
 #        cv2.putText(img, s, p1[::-1], cv2.FONT_HERSHEY_SCRIPT_SIMPLEX, 2, color, 2)
-    return r_boxes
 
 
 if __name__ == '__main__':
