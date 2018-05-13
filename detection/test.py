@@ -12,16 +12,16 @@ from nets import STVNet
 from PIL import Image
 import matplotlib.pyplot as plt
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 model_dir='/home/hcxiao/Codes/YARR/detection/models/stvnet/'
 STV2K_Path = '/media/data2/hcx_data/STV2K/stv2k_test/'
 ICDAR_Path='/media/data2/hcx_data/ICDAR15-IncidentalSceneText/ch4_test_images/'
-img_name = 'STV2K_ts_0683.jpg' #'img_243.jpg'
+img_name = 'STV2K_ts_0327.jpg' #'img_243.jpg'
 PATH = STV2K_Path
 
 test_all_path = STV2K_Path
 generate_pic_path = './results/icdar/angles/'
-generate_txt_path = './results/stv2k/paper_data/300-11100-threshold-point35'
+generate_txt_path = './results/stv2k/paper_data/512-21600-threshold-point35'
 generate_threshold = 0.05
 
 img_width = config.FLAGS.input_size_width
@@ -117,9 +117,17 @@ def test(img_name):
             img = Image.open(PATH + img_name)
             img = np.array(img)
 
-            # img = np.copy(im)
+#            img_ori = np.copy(img)
             r_boxes = restore_rbox(pre_s[1][0], pre_box[1][0], pre_an[1][0], img.shape)
+#            print('box num before lanms:%d' % r_boxes.shape[0])
+#            bboxes_draw_on_img(img_ori, r_boxes, generate_threshold, (31, 119, 180))
+            # fig = plt.figure(figsize=(12, 12))
+            # plt.imshow(img)
+#            result_img = Image.fromarray(np.uint8(img_ori))
+#            result_img.save('results/angles/lanms-before-' + str(config.FLAGS.nms_threshold * 100) + '-' + str(config.FLAGS.input_size_width) + '-' + ckpt_path.split('-')[-1] + '-' + img_name)
+
             r_boxes = lanms.merge_quadrangle_n9(r_boxes.astype('float32'), config.FLAGS.nms_threshold)
+#            print('box num after lanms:%d' % r_boxes.shape[0])
             bboxes_draw_on_img(img, r_boxes, generate_threshold, (31, 119, 180))
             # fig = plt.figure(figsize=(12, 12))
             # plt.imshow(img)
@@ -178,7 +186,7 @@ def test_all(dir_path):
                     img = np.array(img)
                     r_boxes = restore_rbox(pre_s[1][0], pre_box[1][0], pre_an[1][0], img.shape)
                     r_boxes = lanms.merge_quadrangle_n9(r_boxes.astype('float32'), config.FLAGS.nms_threshold)
-                    bboxes_draw_on_img(img, r_boxes, generate_threshold, (31, 119, 180))
+#                    bboxes_draw_on_img(img, r_boxes, generate_threshold, (31, 119, 180))
                     # r_boxes = bboxes_draw_on_img(img, pre_s[1][0], pre_box[1][0], pre_an[1][0], generate_threshold, (31, 119, 180))
 #                    result_img = Image.fromarray(np.uint8(img))
 #                    result_img.save(generate_pic_path + filename)
@@ -191,6 +199,8 @@ def restore_rbox(scores, boxes, angles, shape):
     r_boxes = []
     for i in range(len(boxes)):
         bbox = boxes[i]
+        if sum(bbox) == 0:
+            continue
         # Draw bounding box...
         bbox = np.clip(bbox, 0.0, 1.0)
         p1 = (int(bbox[0] * shape[0]), int(bbox[1] * shape[1]))
@@ -233,7 +243,7 @@ def restore_rbox(scores, boxes, angles, shape):
         rbox = np.array([cor0[0], cor0[1], cor1[0], cor1[1], cor2[0], cor2[1], cor3[0], cor3[1], scores[i]])
         r_boxes.append(rbox)
 
-    return r_boxes
+    return np.array(r_boxes)
 
 
 
@@ -241,6 +251,7 @@ def restore_rbox(scores, boxes, angles, shape):
 def txt_generator(filename, r_boxes):
     txt_save_path = os.path.join(generate_txt_path, 'res_' + filename.split('.')[0]+'.txt')
     txt_file = open(txt_save_path, 'wt')
+    r_boxes = r_boxes.astype(np.int32)
 
     for i in range(len(r_boxes)):
         x1, y1, x2, y2, x3, y3, x4, y4,_ = r_boxes[i]
@@ -262,11 +273,11 @@ def bboxes_draw_on_img(img, r_boxes, threshold, color, thickness=5):
         rbox = box[:8].reshape([-1, 4, 2]).astype(np.int32)
 
         #cv2.polylines(img, [rbox], True, (0, 255, 0), 3)
-#        cv2.drawContours(img, rbox, -1, (255, 255, 0), 3)
+        cv2.drawContours(img, rbox, -1, (255, 255, 0), 3)
 
         # Draw text...
         s = '%.3f' % (box[8])
-        p1 = (p1[0]-5, p1[1])
+        #p1 = (p1[0]-5, p1[1])
 #        cv2.putText(img, s, p1[::-1], cv2.FONT_HERSHEY_SCRIPT_SIMPLEX, 2, color, 2)
 
 
