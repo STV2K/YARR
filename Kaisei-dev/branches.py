@@ -271,10 +271,10 @@ class Hokuto(nn.Module):
                 h_max += 1
             else:
                 h_min -= 1
-        print(h_min, h_max, w_min, w_max)
+        #print(h_min, h_max, w_min, w_max)
         crop = torch.index_select(tensor, 2, torch.cuda.LongTensor(list(range(w_min, w_max))))
         crop = torch.index_select(crop, 1, torch.cuda.LongTensor(list(range(h_min, h_max))))
-        print('crop shape:', crop.shape)
+        #print('crop shape:', crop.shape)
         return crop
 
     @staticmethod

@@ -127,8 +127,8 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
         training_masks = Variable(training_masks)
         #pred_scores, pred_geos = net(img_batch)
         ran_quads, ran_angles, ran_contents, ran_indexes, rect_batch_size = get_random_rec_datas(dic)
-        #print(type(img_batch.data), type(ran_quads))
-        pred_scores, pred_geos, pred_rec = hokuto(img_batch.cuda(), ran_quads, ran_angles, ran_contents, ran_indexes)
+        rec_flag = False if len(ran_quads) == 0 else True
+        pred_scores, pred_geos, pred_rec = hokuto(img_batch.cuda(), ran_quads, ran_angles, ran_contents, ran_indexes, rec_flag)
 
         # Detection loss
         #batch_loss = eval.loss(score_maps, pred_scores, geo_maps, pred_geos, training_masks)
@@ -137,26 +137,28 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
         loss_det_avg.add(batch_loss)
 
         # Recognition loss
-        t, l = converter.encode(ran_contents)
-        rec_utils.load_data(text, t)
-        rec_utils.load_data(length, l)
-        preds_size = Variable(torch.IntTensor([pred_rec.size(0)] * rect_batch_size))
-        rec_loss = criterion(pred_rec, text, preds_size, length) / rect_batch_size
-        rec_loss *= 0.0006
-        loss_rec_avg.add(rec_loss)
+        if rec_flag:
+            t, l = converter.encode(ran_contents)
+            rec_utils.load_data(text, t)
+            rec_utils.load_data(length, l)
+            preds_size = Variable(torch.IntTensor([pred_rec.size(0)] * rect_batch_size))
+            rec_loss = criterion(pred_rec, text, preds_size, length) / rect_batch_size
+            rec_loss *= 0.0006
+            loss_rec_avg.add(rec_loss)
 
-        # Recognition correct count
-        _, pred_rec = pred_rec.max(2)
-        #pred_rec = pred_rec.squeeze(2)
-        pred_rec = pred_rec.transpose(1, 0).contiguous().view(-1)
-        sim_preds = converter.decode(pred_rec.data, preds_size.data, raw=False)
-        for pred, target in zip(sim_preds, ran_contents):
-            if pred == target.lower():
-                n_correct += 1
+            # Recognition correct count
+            _, pred_rec = pred_rec.max(2)
+            #pred_rec = pred_rec.squeeze(2)
+            pred_rec = pred_rec.transpose(1, 0).contiguous().view(-1)
+            sim_preds = converter.decode(pred_rec.data, preds_size.data, raw=False)
+            for pred, target in zip(sim_preds, ran_contents):
+                if pred == target.lower():
+                    n_correct += 1
 
-    raw_preds = converter.decode(pred_rec.data, preds_size.data, raw=True)[:config.n_test_disp]
-    for raw_pred, pred, gt in zip(raw_preds, sim_preds, ran_contents):
-        print('%-20s => %-20s, gt: %-20s' % (raw_pred, pred, gt))
+    if rec_flag:
+        raw_preds = converter.decode(pred_rec.data, preds_size.data, raw=True)[:config.n_test_disp]
+        for raw_pred, pred, gt in zip(raw_preds, sim_preds, ran_contents):
+            print('%-20s => %-20s, gt: %-20s' % (raw_pred, pred, gt))
 
     logger.tee('Test detection loss: %f' % (loss_det_avg.val()))
     logger.tee('Test recognition loss: %f' % (loss_rec_avg.val()))
@@ -217,7 +219,7 @@ def train_batch(net, criterion, optimizer):
     batch_loss = batch_loss / config.batch_size
 
     # Calculate recognition loss
-    if len(ran_quads) != 0:
+    if rec_flag:
         print(ran_contents)
         t, l = converter.encode(ran_contents)
         rec_utils.load_data(text, t)
