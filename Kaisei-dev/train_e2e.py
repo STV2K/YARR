@@ -127,6 +127,7 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
         training_masks = Variable(training_masks)
         #pred_scores, pred_geos = net(img_batch)
         ran_quads, ran_angles, ran_contents, ran_indexes, rect_batch_size = get_random_rec_datas(dic)
+        #print(type(img_batch.data), type(ran_quads))
         rec_flag = False if len(ran_quads) == 0 else True
         pred_scores, pred_geos, pred_rec = hokuto(img_batch.cuda(), ran_quads, ran_angles, ran_contents, ran_indexes, rec_flag)
 
@@ -141,15 +142,16 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
             t, l = converter.encode(ran_contents)
             rec_utils.load_data(text, t)
             rec_utils.load_data(length, l)
-            preds_size = Variable(torch.IntTensor([pred_rec.size(0)] * rect_batch_size))
+            preds_size = Variable(torch.IntTensor([pred_rec.size(0)] * rect_batch_size))  
+            # preds_size.numel() : batch_size;  preds_size.shape: torch.Size([btach_size])
             rec_loss = criterion(pred_rec, text, preds_size, length) / rect_batch_size
-            rec_loss *= 0.0006
+            rec_loss *= 0.0001
             loss_rec_avg.add(rec_loss)
 
             # Recognition correct count
-            _, pred_rec = pred_rec.max(2)
+            _, pred_rec = pred_rec.max(2)   # pred_rec shape: before: w * b * len(alphabet)  after: w * b
             #pred_rec = pred_rec.squeeze(2)
-            pred_rec = pred_rec.transpose(1, 0).contiguous().view(-1)
+            pred_rec = pred_rec.transpose(1, 0).contiguous().view(-1)  # flat. len(pred_rec) : b*w
             sim_preds = converter.decode(pred_rec.data, preds_size.data, raw=False)
             for pred, target in zip(sim_preds, ran_contents):
                 if pred == target.lower():
@@ -213,6 +215,10 @@ def train_batch(net, criterion, optimizer):
     ran_quads, ran_angles, ran_contents, ran_indexes, rect_batch_size = get_random_rec_datas(dic)
     rec_flag = False if len(ran_quads) == 0 else True
     pred_scores, pred_geos, pred_rec = hokuto(img_batch, ran_quads, ran_angles, ran_contents, ran_indexes, rec_flag)
+    # print(pred_rec.shape)
+    # pred_data = pred_rec.data
+    # print('pred_rec[:, 0, 0]: ', pred_data[:, 0, 0])
+    # print('pred_rec[:, 1, 0]: ', pred_data[:, 1, 0])
 
     # Calculate detection loss
     batch_loss = eval.loss(score_maps, pred_scores, geo_maps, pred_geos, training_masks)
@@ -220,13 +226,13 @@ def train_batch(net, criterion, optimizer):
 
     # Calculate recognition loss
     if rec_flag:
-        print(ran_contents)
+        #print(ran_contents)
         t, l = converter.encode(ran_contents)
         rec_utils.load_data(text, t)
         rec_utils.load_data(length, l)
         preds_size = Variable(torch.IntTensor([pred_rec.size(0)] * rect_batch_size))
         rec_loss = criterion(pred_rec, text, preds_size, length) / rect_batch_size
-        rec_loss *= 0.0006
+        rec_loss *= 0.0001
 
         loss = batch_loss + rec_loss.cuda()
     else:
@@ -248,7 +254,10 @@ def train_batch(net, criterion, optimizer):
     # crnn.zero_grad()
     # cost.backward()
     # optimizer.step()
-    return batch_loss, rec_loss, loss
+    if rec_flag:
+        return batch_loss, rec_loss, loss
+    else:
+        return batch_loss, 0, loss
 
 
 def get_random_rec_datas(dic, batch_size = config.max_rec_batch):
