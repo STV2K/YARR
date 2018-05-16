@@ -86,13 +86,23 @@ loss_rec_avg = eval.LossAverage()
 loss_avg = eval.LossAverage()
 
 # setup optimizer
-if config.adam:
-    optimizer = optim.Adam(hokuto.parameters(), lr=config.lr,
-                           betas=(config.beta1, 0.999))
-elif config.adadelta:
-    optimizer = optim.Adadelta(hokuto.parameters(), lr=config.lr)
+# detect
+if config.det_adam:
+    det_optimizer = optim.Adam(hokuto.detect.parameters(), lr=config.det_lr,
+                               betas=(config.det_beta1, 0.999))
+elif config.det_adadelta:
+    det_optimizer = optim.Adadelta(hokuto.detect.parameters(), lr=config.det_lr)
 else:
-    optimizer = optim.RMSprop(hokuto.parameters(), lr=config.lr)
+    det_optimizer = optim.RMSprop(hokuto.detect.parameters(), lr=config.det_lr)
+
+# rec
+if config.rec_adam:
+    rec_optimizer = optim.Adam(hokuto.recong.parameters(), lr=config.rec_lr,
+                           betas=(config.rec_beta1, 0.999))
+elif config.rec_adadelta:
+    rec_optimizer = optim.Adadelta(hokuto.recong.parameters(), lr=config.rec_lr)
+else:
+    rec_optimizer = optim.RMSprop(hokuto.recong.parameters(), lr=config.rec_lr)
 
 
 # image = torch.FloatTensor(opt.batchSize, 3, opt.imgH, opt.imgH)
@@ -145,7 +155,7 @@ def val(net, dataset, criterion, max_iter=config.test_iter_num):
             preds_size = Variable(torch.IntTensor([pred_rec.size(0)] * rect_batch_size))  
             # preds_size.numel() : batch_size;  preds_size.shape: torch.Size([btach_size])
             rec_loss = criterion(pred_rec, text, preds_size, length) / rect_batch_size
-            rec_loss *= 0.0001
+            rec_loss *= config.rec_loss_weight
             loss_rec_avg.add(rec_loss)
 
             # Recognition correct count
@@ -232,15 +242,21 @@ def train_batch(net, criterion, optimizer):
         rec_utils.load_data(length, l)
         preds_size = Variable(torch.IntTensor([pred_rec.size(0)] * rect_batch_size))
         rec_loss = criterion(pred_rec, text, preds_size, length) / rect_batch_size
-        rec_loss *= 0.0001
+        rec_loss *= config.rec_loss_weight
 
         loss = batch_loss + rec_loss.cuda()
     else:
         loss = batch_loss
 
     hokuto.zero_grad()
-    loss.backward()
-    optimizer.step()
+    # loss.backward()
+    batch_loss.backward()
+    if rec_flag:
+        rec_loss.backward()
+    #optimizer.step()
+    det_optimizer.step()
+    if rec_flag:
+        rec_optimizer.step()
     # cpu_images, cpu_texts = data
     # batch_size = cpu_images.size(0)
     # utils.loadData(image, cpu_images)
@@ -317,7 +333,42 @@ def get_random_rec_datas(dic, batch_size = config.max_rec_batch):
             random_indexes.append(flat_indexes[random_index])
             ind += 1
 
-    return random_quads, random_angles, random_contents, random_indexes, batch_size
+    ret_quads, ret_angles, ret_contents, ret_indexes = sort_by_content_length(random_quads, random_angles,
+                                                                              random_contents, random_indexes)
+
+    return ret_quads, ret_angles, ret_contents, ret_indexes, batch_size
+
+
+# sort quads by the length of content
+def sort_by_content_length(random_quads, random_angles, random_contents, random_indexes):
+    length = len(random_contents)
+    int_table = list(range(length))
+    value_table = [len(random_contents[i]) for i in range(length)]
+
+    for i in range(length):
+        j = i + 1
+        while j < length:
+            if value_table[j] < value_table[i]:
+                temp = value_table[i]
+                value_table[i] = value_table[j]
+                value_table[j] = temp
+
+                temp = int_table[i]
+                int_table[i] = int_table[j]
+                int_table[j] = temp
+            j += 1
+
+    ret_quads = []
+    ret_angles = []
+    ret_contents = []
+    ret_indexes = []
+    for i in range(length):
+        ret_quads.append(random_quads[int_table[i]])
+        ret_angles.append(random_angles[int_table[i]])
+        ret_contents.append(random_contents[int_table[i]])
+        ret_indexes.append(random_indexes[int_table[i]])
+
+    return ret_quads, ret_angles, ret_contents, ret_indexes
 
 
 def hokuto_train():

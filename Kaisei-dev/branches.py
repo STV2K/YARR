@@ -136,6 +136,8 @@ class Kaisei(nn.Module):
         self.deconv = models.deconv_block()
         self.detect = DetectionBranch()
 
+        self.x = 0
+
     def forward(self, x):
         """
         :param x: output tensor from feature sharing block, expect channel_num to be 256
@@ -145,6 +147,7 @@ class Kaisei(nn.Module):
         residual_layers = self.resnet.residual_layers
         x = self.deconv(x, residual_layers)
         score_map, geometry_map = self.detect(x)
+        self.x = x
         # Reset residual cache
         self.resnet.residual_layers = []
 
@@ -158,9 +161,10 @@ class Hokuto(nn.Module):
 
     def __init__(self, n_class, n_hidden_status):
         super().__init__()
-        self.resnet = models.resnet50_block()
-        self.deconv = models.deconv_block()
-        self.detect = DetectionBranch()
+        # self.resnet = models.resnet50_block()
+        # self.deconv = models.deconv_block()
+        # self.detect = DetectionBranch()
+        self.detect = Kaisei()
         self.recong = RecognitionBranch(n_class, n_hidden_status, n_channel=config_e2e.n_channel)
 
     def forward(self, x, quads, angles, contents, indexes, rec_flag):
@@ -175,12 +179,13 @@ class Hokuto(nn.Module):
         #ori_imgs = x.data
         #i = 0
 
-        x = self.resnet(x)
-        residual_layers = self.resnet.residual_layers
-        x = self.deconv(x, residual_layers)
+        # x = self.resnet(x)
+        # residual_layers = self.resnet.residual_layers
+        # x = self.deconv(x, residual_layers)
         score_map, geometry_map = self.detect(x)
+        x = self.detect.x
         # Reset residual cache
-        self.resnet.residual_layers = []
+        # self.resnet.residual_layers = []
 
         if rec_flag:
             features = []
